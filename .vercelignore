@@ -1,0 +1,11 @@
+# Large local images — served from Cloudinary in production
+images/
+
+# Server source — runs on Railway, not Vercel
+server/
+
+# Dev & editor files
+.claude/
+node_modules/
+.env
+*.env.local
