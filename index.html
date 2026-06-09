@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Saba Bezhashvili — Deliquente Pensamiento</title>
+<meta name="description" content="Saba Bezhashvili — contemporary painter & visual artist. Neo-Expressionist works, exhibitions and studio process.">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&family=Hanken+Grotesk:wght@400;500;600;700&family=Shantell+Sans:wght@400;600&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/style.css?v=15">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%23111'/%3E%3Cg stroke='%23F4C430' stroke-width='9' stroke-linecap='round'%3E%3Cpath d='M50 20 V80'/%3E%3Cpath d='M26 34 L74 66'/%3E%3Cpath d='M74 34 L26 66'/%3E%3C/g%3E%3C/svg%3E">
+</head>
+<body>
+
+<div id="scrollProgress" aria-hidden="true"></div>
+<div id="bgFrags" aria-hidden="true"></div>
+
+<!-- ===== ADMIN BAR ===== -->
+<div class="admin-bar" id="adminBar">
+  <span class="tag">● EDIT MODE</span>
+  <span class="hint">დააჭირე ნებისმიერ ტექსტს რომ შეცვალო · ნამუშევრები გადააადგილე გადათრევით</span>
+  <span class="spacer"></span>
+  <button id="aAddWork">+ ნამუშევარი</button>
+  <button id="aTexts">✎ ტექსტები</button>
+  <button id="aSections">⚡ სექციები</button>
+  <button id="aCoverGallery">🖼 Cover</button>
+  <button id="aBgFrags">◈ ფიგურები</button>
+  <button id="aPurchases">◉ შეკვეთები</button>
+  <button id="aBackup">💾 Backup</button>
+  <button class="danger" id="aReset">Reset</button>
+  <button class="danger" id="aLogout">Exit</button>
+  <input type="file" id="importFile" accept="application/json" hidden>
+</div>
+
+<!-- ===== NAV ===== -->
+<nav class="nav" id="nav">
+  <a href="#top" class="brand">
+    <span class="brand-name" id="navTitle">SABA BEZHASHVILI</span>
+    <span class="brand-sub" id="navSubtitle">DELIQUENTE PENSAMIENTO</span>
+  </a>
+  <div class="nav-links" id="navLinks">
+    <a href="#works">Works</a>
+    <a href="#about">About</a>
+    <a href="#studio">Studio</a>
+    <a href="#exhibitions">Exhibitions</a>
+    <a href="#photography">Photography</a>
+    <a href="#journal">Journal</a>
+    <a href="#contact">Contact</a>
+  </div>
+  <button class="menu-btn" id="menuBtn">MENU</button>
+</nav>
+
+<main id="top">
+
+  <!-- ===== HERO ===== -->
+  <header class="hero" id="hero">
+    <!-- floating doodles -->
+    <svg class="doodle arrow" viewBox="0 0 140 60"><path d="M4 30 H120 M96 8 L124 30 L96 52" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    <svg class="doodle spiral" viewBox="0 0 80 80"><path d="M40 40 m0 0 a6 6 0 1 1 8 4 a14 14 0 1 1 -20 -6 a24 24 0 1 1 34 12" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"/></svg>
+    <svg class="doodle star" viewBox="0 0 60 60"><path d="M30 4 L37 23 L57 23 L41 36 L47 56 L30 43 L13 56 L19 36 L3 23 L23 23 Z" fill="currentColor"/></svg>
+
+    <div class="wrap hero-grid">
+      <div class="hero-text">
+        <div class="hero-eyebrow eyebrow reveal" data-edit="hero.eyebrow">—</div>
+        <h1 class="reveal d1" id="heroName" data-edit="hero.name">—</h1>
+        <div class="role reveal d2" data-edit="hero.role">—</div>
+        <p class="statement reveal d2" data-edit="hero.statement">—</p>
+        <div class="hero-cta reveal d3">
+          <a href="#works" class="btn solid" data-edit="hero.btnPrimary">View Portfolio</a>
+          <a href="#contact" class="btn" data-edit="hero.btnSecondary">Contact</a>
+        </div>
+      </div>
+      <div class="hero-art reveal d2" id="heroArt">
+        <div class="frame"><img id="heroImg" alt="Featured artwork"></div>
+        <span class="tag" id="heroTag">—</span>
+      </div>
+    </div>
+    <div class="scroll-cue"><span class="ln"></span> SCROLL</div>
+  </header>
+
+  <!-- ===== WORKS ===== -->
+  <section class="section" id="works">
+    <div class="wrap">
+      <div class="sec-head">
+        <div>
+          <span class="sec-num">01 — PORTFOLIO</span>
+          <h2 class="reveal" id="worksHeading">Featured<br>Works</h2>
+          <svg class="scribble-line" viewBox="0 0 280 18" preserveAspectRatio="none"><path d="M2 12 C60 2 90 16 140 8 S230 2 278 10" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"/></svg>
+        </div>
+        <p class="hand" style="max-width:30ch" id="worksTagline">A living archive — click any piece to step inside it.</p>
+      </div>
+      <div class="gallery-ticker" aria-hidden="true"><div class="gallery-ticker-inner"></div></div>
+    </div>
+    <div class="gallery-wrap">
+      <div class="gallery" id="gallery"></div>
+    </div>
+    <div class="wrap">
+      <button class="admin-add" id="addWork2">+ ახალი ნამუშევრის დამატება</button>
+    </div>
+  </section>
+
+  <!-- ===== ABOUT ===== -->
+  <section class="section" id="about">
+    <div class="wrap">
+      <div class="sec-head">
+        <div><span class="sec-num">02 — THE ARTIST</span>
+          <h2 class="reveal" data-edit="about.heading">About</h2></div>
+      </div>
+      <div class="about-grid">
+        <div class="portrait reveal">
+          <img id="aboutPortrait" alt="Artist portrait">
+          <span class="note n1" id="aboutNote1">in the studio</span>
+          <span class="note n2" id="aboutNote2">↳ memory & chaos</span>
+        </div>
+        <div class="about-body">
+          <div class="about-block reveal"><h3 data-edit="about.bioTitle">Biography</h3><p data-edit="about.bio">—</p></div>
+          <div class="about-block reveal d1"><h3 data-edit="about.philosophyTitle">Philosophy</h3><p data-edit="about.philosophy">—</p></div>
+          <div class="about-block reveal d2"><h3 data-edit="about.influencesTitle">Influences</h3><p data-edit="about.influences">—</p></div>
+          <div class="about-block reveal d3"><h3 data-edit="about.processTitle">Process</h3><p data-edit="about.process">—</p></div>
+          <div class="about-notes" id="aboutNotes"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== STUDIO ===== -->
+  <section class="section" id="studio">
+    <div class="wrap">
+      <div class="sec-head">
+        <div><span class="sec-num">03 — BEHIND THE WORK</span>
+          <h2 class="reveal" data-edit="studio.heading">Studio</h2></div>
+      </div>
+      <p class="studio-intro reveal" data-edit="studio.intro">—</p>
+    </div>
+    <div class="wrap"><div class="hscroll" id="hscroll"></div>
+      <div class="hscroll-hint">← DRAG / SCROLL →</div>
+    </div>
+  </section>
+
+  <!-- ===== EXHIBITIONS ===== -->
+  <section class="section" id="exhibitions">
+    <div class="wrap">
+      <div class="sec-head">
+        <div><span class="sec-num">04 — CV</span>
+          <h2 class="reveal" data-edit="exhibitions.heading">Exhibitions<br>& Awards</h2></div>
+      </div>
+      <div class="timeline" id="timeline"></div>
+      <button class="admin-add" id="addExhibition">+ ჩანაწერის დამატება</button>
+    </div>
+  </section>
+
+  <!-- ===== JOURNAL ===== -->
+  <section class="section" id="journal">
+    <div class="wrap">
+      <div class="sec-head">
+        <div><span class="sec-num">05 — NOTES</span>
+          <h2 class="reveal" data-edit="journal.heading">Journal</h2></div>
+        <p class="hand" data-edit="journal.intro" style="max-width:30ch">—</p>
+      </div>
+      <div class="journal-grid" id="journalGrid"></div>
+      <button class="admin-add" id="addPost">+ პოსტის დამატება</button>
+    </div>
+  </section>
+
+  <!-- ===== PHOTOGRAPHY ===== -->
+  <section class="section" id="photography">
+    <div class="wrap">
+      <div class="sec-head">
+        <div>
+          <span class="sec-num">06 — PHOTOGRAPHY</span>
+          <h2 class="reveal" data-edit="photography.heading">Photography</h2>
+          <svg class="scribble-line" viewBox="0 0 280 18" preserveAspectRatio="none"><path d="M2 12 C60 2 90 16 140 8 S230 2 278 10" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"/></svg>
+        </div>
+        <p class="hand" data-edit="photography.intro" style="max-width:30ch">—</p>
+      </div>
+      <div class="photo-grid" id="photoGrid"></div>
+      <button class="admin-add" id="addPhoto2">+ ფოტოს ატვირთვა</button>
+    </div>
+  </section>
+
+  <!-- ===== CONTACT ===== -->
+  <section class="section" id="contact">
+    <div class="wrap contact-grid">
+      <div>
+        <span class="sec-num" style="color:var(--paper)">07 — CONTACT</span>
+        <h2 data-edit="contact.heading">—</h2>
+        <p class="contact-intro" data-edit="contact.intro">—</p>
+        <div class="contact-links">
+          <a id="cEmail"><span>✉</span><b data-edit="contact.email">—</b></a>
+          <a id="cInsta" target="_blank"><span>◎</span><b data-edit="contact.instagram">—</b></a>
+          <a id="cBe" target="_blank"><span>◢</span><b data-edit="contact.behance">—</b></a>
+        </div>
+      </div>
+      <div class="cform">
+        <div class="ftitle" data-edit="contact.formNote">Commission request</div>
+        <label>Name</label><input id="fName" type="text" placeholder="Your name">
+        <label>Email</label><input id="fEmail" type="email" placeholder="you@email.com">
+        <label>Type</label>
+        <select id="fType"><option>Commission</option><option>Exhibition</option><option>Studio visit</option><option>Other</option></select>
+        <label>Message</label><textarea id="fMsg" placeholder="Tell me about the project…"></textarea>
+        <button class="submit" id="fSubmit">Send request</button>
+        <div class="ok" id="fOk">✓ Thanks — your message is ready to send.</div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="foot">
+  <span>© <span id="year"></span> <span id="footerArtistName">SABA BEZHASHVILI</span></span>
+  <span>DELIQUENTE <b id="footerSubtitle">PENSAMIENTO</b></span>
+  <span id="footerCity">TBILISI · GE</span>
+</footer>
+
+<!-- ===== WORK DETAIL OVERLAY ===== -->
+<div class="detail" id="detail">
+  <div class="detail-bar">
+    <button class="detail-back" id="detailBack">← BACK TO WORKS</button>
+    <span class="eyebrow">DELIQUENTE PENSAMIENTO</span>
+  </div>
+  <div class="detail-inner" id="detailInner"></div>
+</div>
+
+<!-- ===== ADMIN FAB ===== -->
+<button class="admin-fab" id="adminFab" title="Admin">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 15a3 3 0 100-6 3 3 0 000 6z"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 110-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 114 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 110 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+</button>
+
+<!-- ===== GENERIC MODAL ===== -->
+<div class="modal" id="modal"><div class="modal-box" id="modalBox"></div></div>
+
+<div class="toast" id="toast"></div>
+
+<script src="assets/js/data.js?v=15"></script>
+<script src="assets/js/app.js?v=15"></script>
+<script src="assets/js/admin.js?v=15"></script>
+</body>
+</html>

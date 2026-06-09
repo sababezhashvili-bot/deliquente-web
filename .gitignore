@@ -1,0 +1,24 @@
+# Dependencies
+node_modules/
+server/node_modules/
+
+# Environment secrets — NEVER commit these
+.env
+server/.env
+*.env.local
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+*.swp
+
+# Build output
+dist/
+.vercel/
+
+# Claude Code
+.claude/
+
+# Local images — uploaded to Cloudinary for production
+images/
