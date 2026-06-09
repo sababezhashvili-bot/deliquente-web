@@ -1,0 +1,5 @@
+# Tell nixpacks (Railway's build system) to use Node.js
+providers = ["node"]
+
+[phases.setup]
+nixPkgs = ["nodejs_20", "nodePackages.npm"]
