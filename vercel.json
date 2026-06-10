@@ -4,7 +4,7 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://YOUR_RAILWAY_APP.up.railway.app/api/:path*"
+      "destination": "https://deliquente-web-production.up.railway.app/api/:path*"
     }
   ],
 
