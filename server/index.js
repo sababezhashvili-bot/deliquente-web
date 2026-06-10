@@ -49,14 +49,14 @@ app.use((err, _req, res, _next) => {
   res.status(500).json({ error: err.message ?? 'Internal server error' });
 });
 
-/* ── Start ── */
-initDB()
-  .then(() => {
-    app.listen(PORT, () =>
-      console.log(`🚀  Deliquente API running on http://localhost:${PORT}`)
-    );
-  })
-  .catch(err => {
-    console.error('Failed to initialize DB:', err);
-    process.exit(1);
-  });
+/* ── Start: listen first, then connect DB ── */
+app.listen(PORT, async () => {
+  console.log(`🚀  Deliquente API running on port ${PORT}`);
+  try {
+    await initDB();
+    console.log('✅  Database connected');
+  } catch (err) {
+    console.error('⚠️  DB init failed — API running without DB:', err.message);
+    // Server stays up; DB-dependent routes will return 503 gracefully
+  }
+});
