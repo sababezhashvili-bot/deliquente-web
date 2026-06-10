@@ -55,18 +55,32 @@
    * Priority: API (Railway PostgreSQL) → localStorage cache → DEFAULT_DATA
    */
   async function loadStore() {
-    /* 1. Try API */
+    /* 1. Try API — only use if response has actual works data */
     const apiData = await _apiFetch('/api/data');
-    if (apiData && typeof apiData === 'object' && !apiData.error) {
+    const apiValid = apiData &&
+      typeof apiData === 'object' &&
+      !apiData.error &&
+      Array.isArray(apiData.works) &&   // must have works array
+      apiData.works.length > 0;          // must not be empty
+
+    if (apiValid) {
       DATA = deepMerge(DEFAULT_DATA, apiData);
       /* Update localStorage cache silently */
       try { localStorage.setItem(STORE_KEY, JSON.stringify(DATA)); } catch (_) {}
       return;
     }
-    /* 2. Fallback: localStorage */
+    /* 2. Fallback: localStorage cache */
     let saved = null;
     try { saved = JSON.parse(localStorage.getItem(STORE_KEY)); } catch (_) {}
-    DATA = saved ? deepMerge(DEFAULT_DATA, saved) : clone(DEFAULT_DATA);
+    if (saved && Array.isArray(saved.works) && saved.works.length > 0) {
+      DATA = deepMerge(DEFAULT_DATA, saved);
+      /* Push local cache to API so other devices sync */
+      const pwd = window.DPAdmin?._adminPassword;
+      if (pwd) _apiFetch('/api/data', { method:'PUT', body: JSON.stringify({ password: pwd, data: DATA }) });
+      return;
+    }
+    /* 3. Last resort: built-in defaults */
+    DATA = clone(DEFAULT_DATA);
   }
 
   /**
@@ -668,8 +682,15 @@
   }
 
   function navMenu() {
-    $("#menuBtn").addEventListener("click", () => $("#navLinks").classList.toggle("open"));
-    $$("#navLinks a").forEach((a) => a.addEventListener("click", () => $("#navLinks").classList.remove("open")));
+    const links = $("#navLinks");
+    const closeMenu = () => links.classList.remove("open");
+    $("#menuBtn").addEventListener("click", () => links.classList.toggle("open"));
+    $("#navClose") && $("#navClose").addEventListener("click", closeMenu);
+    $$("#navLinks a").forEach((a) => a.addEventListener("click", closeMenu));
+    /* Close on backdrop tap (touch outside links) */
+    links.addEventListener("click", (e) => {
+      if (e.target === links) closeMenu();
+    });
   }
 
   function contactForm() {
