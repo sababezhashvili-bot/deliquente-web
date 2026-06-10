@@ -291,6 +291,102 @@
     observeReveal();
   }
 
+  /* =====================================================================
+     PHOTO LIGHTBOX — fullscreen viewer with navigation + swipe
+     ===================================================================== */
+  let _lbPhotos = [];
+  let _lbIdx    = 0;
+  let _lbEl     = null;
+  let _lbTouchX = 0;
+
+  function _initLightbox() {
+    if (_lbEl) return;
+    _lbEl = document.createElement("div");
+    _lbEl.id        = "photoLightbox";
+    _lbEl.className = "photo-lb";
+    _lbEl.setAttribute("role", "dialog");
+    _lbEl.setAttribute("aria-modal", "true");
+    _lbEl.innerHTML = `
+      <button class="plb-close" id="plbClose" aria-label="დახურვა">✕</button>
+      <button class="plb-prev"  id="plbPrev"  aria-label="წინა">&#8249;</button>
+      <button class="plb-next"  id="plbNext"  aria-label="შემდეგი">&#8250;</button>
+      <div class="plb-stage">
+        <img id="plbImg" src="" alt="" draggable="false">
+      </div>
+      <div class="plb-footer">
+        <p class="plb-caption" id="plbCaption"></p>
+        <span class="plb-counter" id="plbCounter"></span>
+      </div>`;
+    document.body.appendChild(_lbEl);
+
+    /* close */
+    _lbEl.querySelector("#plbClose").onclick = _closeLightbox;
+    /* clicking backdrop (not stage) closes */
+    _lbEl.addEventListener("click", (e) => {
+      if (!e.target.closest(".plb-stage") &&
+          !e.target.closest(".plb-footer") &&
+          !e.target.closest(".plb-prev") &&
+          !e.target.closest(".plb-next") &&
+          !e.target.closest(".plb-close")) _closeLightbox();
+    });
+    /* arrows */
+    _lbEl.querySelector("#plbPrev").onclick = () => _lbNav(-1);
+    _lbEl.querySelector("#plbNext").onclick = () => _lbNav(+1);
+    /* keyboard */
+    document.addEventListener("keydown", (e) => {
+      if (!_lbEl.classList.contains("open")) return;
+      if (e.key === "ArrowLeft")  { e.preventDefault(); _lbNav(-1); }
+      if (e.key === "ArrowRight") { e.preventDefault(); _lbNav(+1); }
+      if (e.key === "Escape")     _closeLightbox();
+    });
+    /* touch swipe */
+    _lbEl.addEventListener("touchstart", (e) => { _lbTouchX = e.touches[0].clientX; }, {passive:true});
+    _lbEl.addEventListener("touchend",   (e) => {
+      const dx = e.changedTouches[0].clientX - _lbTouchX;
+      if (Math.abs(dx) > 48) _lbNav(dx > 0 ? -1 : 1);
+    }, {passive:true});
+  }
+
+  function openPhotoLightbox(photos, idx) {
+    _lbPhotos = photos;
+    _lbIdx    = idx;
+    _initLightbox();
+    _lbRender();
+    _lbEl.classList.add("open");
+    document.body.classList.add("lb-open");
+    _lbEl.querySelector("#plbClose").focus();
+  }
+
+  function _closeLightbox() {
+    _lbEl && _lbEl.classList.remove("open");
+    document.body.classList.remove("lb-open");
+  }
+
+  function _lbNav(dir) {
+    _lbIdx = (_lbIdx + dir + _lbPhotos.length) % _lbPhotos.length;
+    _lbRender();
+  }
+
+  function _lbRender() {
+    const ph = _lbPhotos[_lbIdx];
+    const img = document.getElementById("plbImg");
+    img.classList.remove("plb-loaded");
+    img.src = escapeHTML(ph.src || ph);
+    img.alt = ph.caption || "";
+    img.onload = () => img.classList.add("plb-loaded");
+    const cap = document.getElementById("plbCaption");
+    cap.textContent = ph.caption || "";
+    cap.style.display = ph.caption ? "" : "none";
+    document.getElementById("plbCounter").textContent =
+      _lbPhotos.length > 1 ? `${_lbIdx + 1} / ${_lbPhotos.length}` : "";
+    /* hide arrows when only 1 photo */
+    const showNav = _lbPhotos.length > 1;
+    document.getElementById("plbPrev").style.display = showNav ? "" : "none";
+    document.getElementById("plbNext").style.display = showNav ? "" : "none";
+  }
+
+  /* ===================================================================== */
+
   function renderPhotography() {
     const grid = $("#photoGrid"); if (!grid) return;
     grid.innerHTML = "";
@@ -304,32 +400,21 @@
     photos.forEach((ph, i) => {
       const c = document.createElement("div"); c.className = "photo-card reveal";
       c.innerHTML = `
-        <button class="photo-del" data-del-photo="${i}" title="წაშლა">✕</button>
-        <button class="photo-edit" data-edit-photo="${i}" title="რედაქტირება">✎</button>
+        <button class="photo-del admin-only" data-del-photo="${i}" title="წაშლა">✕</button>
+        <button class="photo-edit admin-only" data-edit-photo="${i}" title="რედაქტირება">✎</button>
         <img src="${escapeHTML(ph.src)}" alt="${escapeHTML(ph.caption || "")}" loading="lazy">
         ${(ph.caption || (ph.showPrice && ph.price)) ? `<div class="photo-cap">
-          ${ph.caption ? escapeHTML(ph.caption) : ""}
-          ${(ph.showPrice && ph.price) ? `<span class="price-tag" style="display:inline;margin-left:6px">${escapeHTML(ph.price)}</span>` : ""}
+          ${ph.caption ? `<span class="photo-cap-text">${escapeHTML(ph.caption)}</span>` : ""}
+          ${(ph.showPrice && ph.price) ? `<span class="price-tag">${escapeHTML(ph.price)}</span>` : ""}
         </div>` : ""}`;
       c.addEventListener("click", (e) => {
-        if (e.target.closest(".photo-del")) return;
-        if (e.target.closest(".photo-edit")) return;
-        openPhotoLightbox(ph.src, ph.caption);
+        if (e.target.closest(".photo-del"))   return;
+        if (e.target.closest(".photo-edit"))  return;
+        openPhotoLightbox(photos, i);
       });
       grid.appendChild(c);
     });
     observeReveal();
-  }
-
-  function openPhotoLightbox(src, caption) {
-    const box = $("#modalBox"), modal = $("#modal");
-    box.innerHTML = `
-      <h3 style="margin-bottom:14px">PHOTO</h3>
-      <img src="${escapeHTML(src)}" style="max-width:100%;max-height:65vh;object-fit:contain;border:2px solid var(--ink);display:block;" alt="">
-      ${caption ? `<p style="font-family:var(--f-mono);font-size:.72rem;margin-top:10px;color:var(--grey);letter-spacing:.08em">${escapeHTML(caption)}</p>` : ""}
-      <div class="modal-actions"><button class="cancel" id="lbClose">Close</button></div>`;
-    modal.classList.add("open");
-    $("#lbClose").onclick = () => modal.classList.remove("open");
   }
 
   function renderContact() {
