@@ -1130,24 +1130,40 @@
     return BUILTIN_SECTIONS[id] || id;
   }
 
-  function addCustomSection() {
+  function addCustomSection(type) {
+    type = type === "video" ? "video" : "content";
     const id = Date.now().toString(36);
     D.data.customSections = D.data.customSections || [];
     const n = D.data.customSections.length + 1;
-    D.data.customSections.push({
-      id,
-      eyebrow: String(7 + n).padStart(2, "0") + " — SECTION",
-      heading: "New Section",
-      intro: "",
-      body: "",
-      images: []
-    });
+    const base = {
+      id, type,
+      eyebrow: String(7 + n).padStart(2, "0") + (type === "video" ? " — VIDEO" : " — SECTION"),
+      heading: type === "video" ? "Video Works" : "New Section",
+      intro: "", body: ""
+    };
+    if (type === "video") base.videos = []; else base.images = [];
+    D.data.customSections.push(base);
     D.data.meta.sectionOrder = D.data.meta.sectionOrder || [];
     D.data.meta.sectionOrder.push("cs-" + id);
     D.save();
     D.rerender();
     if (isAdmin()) makeTextEditable(true);
     return id;
+  }
+
+  /* choose content vs video when adding a section */
+  function newSectionChooser() {
+    openModal(`
+      <h3>ახალი სექციის ტიპი</h3>
+      <div class="modal-note">აირჩიე რა სახის სექციაა.</div>
+      <div class="modal-actions" style="flex-direction:column;gap:10px;align-items:stretch">
+        <button class="save" id="nsContent">📝 ტექსტი + სურათების ბადე</button>
+        <button class="save" id="nsVideo">🎬 ვიდეო ნამუშევრები</button>
+        <button class="cancel" id="mCancel">გაუქმება</button>
+      </div>`);
+    $("#nsContent").onclick = () => { closeModal(); addCustomSection("content"); openSectionsPanel(); };
+    $("#nsVideo").onclick   = () => { closeModal(); addCustomSection("video"); openSectionsPanel(); };
+    $("#mCancel").onclick   = closeModal;
   }
 
   function csTextModal(csId) {
@@ -1232,7 +1248,7 @@
     listEl.querySelectorAll("[data-cs-edit]").forEach(b => b.onclick = (e) => { e.stopPropagation(); csTextModal(b.dataset.csEdit); });
     listEl.querySelectorAll("[data-cs-del]").forEach(b => b.onclick = (e) => { e.stopPropagation(); deleteCustomSection(b.dataset.csDel); });
 
-    $("#secAddCustom").onclick = () => { addCustomSection(); openSectionsPanel(); };
+    $("#secAddCustom").onclick = () => { newSectionChooser(); };
 
     $("#mCancel").onclick = closeModal;
     $("#mSave").onclick = () => {
@@ -1496,6 +1512,7 @@
     editExhibition: exModal, editPost: postModal,
     uploadImage,    /* used by app.js for photo uploads */
     refreshEditable: () => makeTextEditable(isAdmin()), /* re-bind inline edit after dynamic render */
+    wirePhotoCards, wireCustomMedia, /* drag-reorder for photography / custom media */
     _adminPassword, /* synced by enterAdmin() / exitAdmin() */
   };
 
@@ -1534,7 +1551,7 @@
     $("#mSave").onclick = () => {
       const src = uploaded || $("#csUrl").value.trim() || (editing ? im.src : "");
       if (!src) { D.toast("ატვირთე სურათი ან მიუთითე URL"); return; }
-      const rec = { src, alt: $("#csAlt").value.trim(), caption: $("#csCap").value.trim() };
+      const rec = { ...(editing ? im : { size: "md" }), src, alt: $("#csAlt").value.trim(), caption: $("#csCap").value.trim() };
       if (editing) cs.images[imgIdx] = rec; else cs.images.push(rec);
       D.save(); D.renderCustomSections();
       if (isAdmin()) makeTextEditable(true);
@@ -1543,23 +1560,148 @@
     $("#mCancel").onclick = closeModal;
   }
 
+  /* video add/edit for a video section (link or uploaded file) */
+  function videoItemModal(sectionId, vidIdx) {
+    const cs = csById(sectionId); if (!cs) return;
+    cs.videos = cs.videos || [];
+    const editing = vidIdx != null;
+    const v = editing ? cs.videos[vidIdx] : { src: "", title: "", size: "lg" };
+    openModal(`
+      <h3>${editing ? "ვიდეოს რედაქტირება" : "ვიდეოს დამატება"}</h3>
+      <label>YouTube / Vimeo ბმული</label>
+      <input id="viUrl" value="${attr(v.src || "")}" placeholder="https://youtu.be/…">
+      <label>ან ვიდეო ფაილის ატვირთვა</label>
+      <input type="file" id="viFile" accept="video/*">
+      <div class="modal-note">⚠ ფაილის ატვირთვა მძიმეა — დიდი ვიდეოსთვის სჯობს YouTube/Vimeo ბმული.</div>
+      <label>სათაური (სურვილისამებრ)</label>
+      <input id="viTitle" value="${attr(v.title || "")}">
+      <div class="modal-actions">
+        <button class="cancel" id="mCancel">Cancel</button>
+        <button class="save" id="mSave">${editing ? "Save" : "Add"}</button>
+      </div>`);
+    let uploaded = null;
+    $("#viFile").onchange = async (e) => {
+      if (e.target.files[0]) { D.toast("↑ ფაილი იტვირთება…"); uploaded = await readFile(e.target.files[0]); D.toast("✓ ფაილი ჩაიტვირთა"); }
+    };
+    $("#mSave").onclick = () => {
+      const src = uploaded || $("#viUrl").value.trim() || (editing ? v.src : "");
+      if (!src) { D.toast("მიუთითე ბმული ან ატვირთე ფაილი"); return; }
+      const rec = { ...(editing ? v : { size: "lg" }), src, title: $("#viTitle").value.trim() };
+      if (editing) cs.videos[vidIdx] = rec; else cs.videos.push(rec);
+      D.save(); D.renderCustomSections(); if (isAdmin()) makeTextEditable(true);
+      closeModal(); D.toast(editing ? "შენახულია" : "ვიდეო დაემატა");
+    };
+    $("#mCancel").onclick = closeModal;
+  }
+
+  /* ── generic media controls reused by photography / custom images / videos ── */
+  const MEDIA_SIZES = ["sm","md","lg","wide","tall","xl","full"];
+  function sizePickModal(title, current, apply) {
+    openModal(`
+      <h3>ზომა — ${esc(title || "")}</h3>
+      <div class="size-pills">
+        ${MEDIA_SIZES.map(s => `<button data-s="${s}" class="${current === s ? "active" : ""}">${s}</button>`).join("")}
+      </div>
+      <div class="modal-note">sm პატარა · md საშუალო · lg დიდი · wide განიერი · tall მაღალი · full მთელ სიგანეზე</div>
+      <div class="modal-actions"><button class="cancel" id="mClose">Done</button></div>`);
+    modalBox.querySelectorAll(".size-pills button").forEach(b => {
+      b.onclick = () => { apply(b.dataset.s);
+        modalBox.querySelectorAll(".size-pills button").forEach(x => x.classList.remove("active"));
+        b.classList.add("active"); };
+    });
+    $("#mClose").onclick = closeModal;
+  }
+  /* pixel-precise crop (pan + zoom) on any object's imgTransform */
+  function cropModalObj(title, obj, onSave) {
+    openModal(`
+      <h3 style="margin-bottom:10px">🖼 კადრირება — ${esc(title || "")}</h3>
+      <div id="cropFrame" style="position:relative;width:100%;padding-top:75%;overflow:hidden;background:#111;border:2px solid var(--ink);cursor:grab">
+        <img id="cropImg" src="${esc(obj.src)}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block">
+        <div style="position:absolute;bottom:8px;left:50%;transform:translateX(-50%);font-family:var(--f-mono);font-size:.48rem;color:rgba(255,255,255,.45);letter-spacing:.16em;pointer-events:none;white-space:nowrap">DRAG TO PAN · CORNER HANDLES TO ZOOM</div>
+      </div>
+      <div class="modal-actions" style="margin-top:10px">
+        <button class="cancel" id="mCancel">Cancel</button>
+        <button class="cancel" id="mReset">↺ Reset</button>
+        <button class="save" id="mSave">✓ Save</button>
+      </div>`);
+    const frame = $("#cropFrame"), img = $("#cropImg");
+    _applyTfm(img, obj.imgTransform || { x:0, y:0, s:1 });
+    wireMediaTransform(frame, () => obj, () => img, "imgTransform");
+    addImageScaleHandles(frame, () => obj, () => img, "imgTransform");
+    $("#mReset").onclick  = () => { delete obj.imgTransform; img.style.transform = ""; };
+    $("#mCancel").onclick = closeModal;
+    $("#mSave").onclick   = () => { D.save(); onSave && onSave(); closeModal(); D.toast("✓ კადრირება შენახულია"); };
+  }
+
+  /* enable drag-reorder on photography cards */
+  function wirePhotoCards() {
+    if (!isAdmin()) return;
+    const grid = document.getElementById("photoGrid"); if (!grid) return;
+    if (!D.data.photography || !D.data.photography.photos) return;
+    D.enableReorder([...grid.querySelectorAll(".photo-work-card")], D.data.photography.photos, D.renderPhotography);
+  }
+  /* enable drag-reorder on custom-section images / videos */
+  function wireCustomMedia() {
+    if (!isAdmin()) return;
+    (D.data.customSections || []).forEach(cs => {
+      const sec = document.getElementById("cs-" + cs.id); if (!sec) return;
+      const rerender = () => { D.renderCustomSections(); makeTextEditable(true); };
+      if (cs.type === "video" && cs.videos) {
+        D.enableReorder([...sec.querySelectorAll(".video-card")], cs.videos, rerender);
+      } else if (cs.images) {
+        D.enableReorder([...sec.querySelectorAll(".photo-work-card")], cs.images, rerender);
+      }
+    });
+  }
+
+  /* unified delegated media controls (photography · custom images · custom videos) */
   document.addEventListener("click", (e) => {
     if (!isAdmin()) return;
-    const add = e.target.closest("[data-cs-addimg]");
-    if (add) { e.stopPropagation(); csImageModal(add.dataset.csAddimg, null); return; }
-    const del = e.target.closest("[data-cs-delimg]");
-    if (del) {
+
+    const addImg = e.target.closest("[data-cs-addimg]");
+    if (addImg) { e.stopPropagation(); csImageModal(addImg.dataset.csAddimg, null); return; }
+    const addVid = e.target.closest("[data-cs-addvid]");
+    if (addVid) { e.stopPropagation(); videoItemModal(addVid.dataset.csAddvid, null); return; }
+
+    const itool = e.target.closest("[data-cs-itool]");
+    if (itool) {
       e.stopPropagation();
-      const [sid, i] = del.dataset.csDelimg.split(":");
-      const cs = csById(sid);
-      if (cs && cs.images) { cs.images.splice(+i, 1); D.save(); D.renderCustomSections(); makeTextEditable(true); }
+      const [act, sid, i] = itool.dataset.csItool.split(":");
+      const cs = csById(sid); if (!cs || !cs.images) return;
+      const idx = +i, im = cs.images[idx]; if (!im) return;
+      const refresh = () => { D.renderCustomSections(); makeTextEditable(true); };
+      if (act === "del")  { if (confirm("წავშალო სურათი?")) { cs.images.splice(idx, 1); D.save(); refresh(); } }
+      else if (act === "edit") csImageModal(sid, idx);
+      else if (act === "size") sizePickModal(im.caption || "image", im.size || "md", s => { im.size = s; D.save(); refresh(); });
+      else if (act === "crop") cropModalObj(im.caption || "image", im, refresh);
       return;
     }
-    const ed = e.target.closest("[data-cs-editimg]");
-    if (ed) {
+
+    const vtool = e.target.closest("[data-cs-vtool]");
+    if (vtool) {
       e.stopPropagation();
-      const [sid, i] = ed.dataset.csEditimg.split(":");
-      csImageModal(sid, +i);
+      const [act, sid, i] = vtool.dataset.csVtool.split(":");
+      const cs = csById(sid); if (!cs || !cs.videos) return;
+      const idx = +i, v = cs.videos[idx]; if (!v) return;
+      const refresh = () => { D.renderCustomSections(); makeTextEditable(true); };
+      if (act === "del")  { if (confirm("წავშალო ვიდეო?")) { cs.videos.splice(idx, 1); D.save(); refresh(); } }
+      else if (act === "edit") videoItemModal(sid, idx);
+      else if (act === "size") sizePickModal(v.title || "video", v.size || "lg", s => { v.size = s; D.save(); refresh(); });
+      return;
+    }
+
+    const ptool = e.target.closest("[data-ptool]");
+    if (ptool) {
+      e.stopPropagation();
+      const card = ptool.closest(".photo-work-card"); if (!card) return;
+      const photos = D.data.photography && D.data.photography.photos; if (!photos) return;
+      const idx = +card.dataset.pidx, ph = photos[idx]; if (!ph) return;
+      const act = ptool.dataset.ptool;
+      if (act === "del")  { if (confirm("წავშალო ფოტო?")) { photos.splice(idx, 1); D.save(); D.renderPhotography(); } }
+      else if (act === "edit") editPhotoModal(idx);
+      else if (act === "size") sizePickModal(ph.caption || "photo", ph.size || "md", s => { ph.size = s; D.save(); D.renderPhotography(); });
+      else if (act === "crop") cropModalObj(ph.caption || "photo", ph, D.renderPhotography);
+      return;
     }
   });
 

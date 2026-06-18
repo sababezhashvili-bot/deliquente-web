@@ -408,7 +408,11 @@
   let _lbPhotos = [];
   let _lbIdx    = 0;
   let _lbEl     = null;
-  let _lbTouchX = 0;
+  /* zoom / pan state */
+  let _lbScale  = 1;
+  let _lbTx     = 0;
+  let _lbTy     = 0;
+  let _lbDragged = false;
 
   function _initLightbox() {
     if (_lbEl) return;
@@ -424,44 +428,152 @@
       <div class="plb-stage">
         <img id="plbImg" src="" alt="" draggable="false">
       </div>
+      <div class="plb-zoom">
+        <button class="plb-zbtn" id="plbZoomOut" aria-label="დაპატარავება">−</button>
+        <span class="plb-zlevel" id="plbZoomLevel">100%</span>
+        <button class="plb-zbtn" id="plbZoomIn" aria-label="გადიდება">+</button>
+        <button class="plb-zbtn" id="plbZoomReset" aria-label="საწყისი ზომა">⟲</button>
+      </div>
       <div class="plb-footer">
         <p class="plb-caption" id="plbCaption"></p>
         <span class="plb-counter" id="plbCounter"></span>
       </div>`;
     document.body.appendChild(_lbEl);
 
+    const stage = _lbEl.querySelector(".plb-stage");
+    const img   = _lbEl.querySelector("#plbImg");
+
     /* close */
     _lbEl.querySelector("#plbClose").onclick = _closeLightbox;
-    /* clicking backdrop (not stage) closes */
+    /* clicking backdrop closes — but not after a pan, and not while zoomed in */
     _lbEl.addEventListener("click", (e) => {
+      if (_lbDragged) { _lbDragged = false; return; }
       if (!e.target.closest(".plb-stage") &&
           !e.target.closest(".plb-footer") &&
+          !e.target.closest(".plb-zoom") &&
           !e.target.closest(".plb-prev") &&
           !e.target.closest(".plb-next") &&
           !e.target.closest(".plb-close")) _closeLightbox();
     });
     /* arrows */
-    _lbEl.querySelector("#plbPrev").onclick = () => _lbNav(-1);
-    _lbEl.querySelector("#plbNext").onclick = () => _lbNav(+1);
+    _lbEl.querySelector("#plbPrev").onclick = (e) => { e.stopPropagation(); _lbNav(-1); };
+    _lbEl.querySelector("#plbNext").onclick = (e) => { e.stopPropagation(); _lbNav(+1); };
+    /* zoom controls */
+    _lbEl.querySelector("#plbZoomIn").onclick    = (e) => { e.stopPropagation(); _lbZoomAt(1.4, 0, 0); };
+    _lbEl.querySelector("#plbZoomOut").onclick   = (e) => { e.stopPropagation(); _lbZoomAt(1/1.4, 0, 0); };
+    _lbEl.querySelector("#plbZoomReset").onclick = (e) => { e.stopPropagation(); _lbResetZoom(); };
     /* keyboard */
     document.addEventListener("keydown", (e) => {
       if (!_lbEl.classList.contains("open")) return;
       if (e.key === "ArrowLeft")  { e.preventDefault(); _lbNav(-1); }
       if (e.key === "ArrowRight") { e.preventDefault(); _lbNav(+1); }
-      if (e.key === "Escape")     _closeLightbox();
+      if (e.key === "Escape")     { if (_lbScale > 1.01) _lbResetZoom(); else _closeLightbox(); }
+      if (e.key === "+" || e.key === "=") { e.preventDefault(); _lbZoomAt(1.4, 0, 0); }
+      if (e.key === "-" || e.key === "_") { e.preventDefault(); _lbZoomAt(1/1.4, 0, 0); }
+      if (e.key === "0")          { e.preventDefault(); _lbResetZoom(); }
     });
-    /* touch swipe */
-    _lbEl.addEventListener("touchstart", (e) => { _lbTouchX = e.touches[0].clientX; }, {passive:true});
-    _lbEl.addEventListener("touchend",   (e) => {
-      const dx = e.changedTouches[0].clientX - _lbTouchX;
-      if (Math.abs(dx) > 48) _lbNav(dx > 0 ? -1 : 1);
-    }, {passive:true});
+
+    /* wheel zoom toward cursor */
+    stage.addEventListener("wheel", (e) => {
+      e.preventDefault();
+      const r = stage.getBoundingClientRect();
+      _lbZoomAt(e.deltaY < 0 ? 1.18 : 1/1.18, e.clientX - r.left - r.width/2, e.clientY - r.top - r.height/2);
+    }, { passive:false });
+
+    /* double-click toggles zoom at point */
+    stage.addEventListener("dblclick", (e) => {
+      const r = stage.getBoundingClientRect();
+      if (_lbScale > 1.05) _lbResetZoom();
+      else _lbZoomAt(2.6, e.clientX - r.left - r.width/2, e.clientY - r.top - r.height/2);
+    });
+
+    /* mouse / pen drag-to-pan when zoomed */
+    let panning = false, sx = 0, sy = 0, stx = 0, sty = 0;
+    img.addEventListener("pointerdown", (e) => {
+      if (e.pointerType === "touch" || _lbScale <= 1.01) return;
+      panning = true; _lbDragged = false; sx = e.clientX; sy = e.clientY; stx = _lbTx; sty = _lbTy;
+      try { img.setPointerCapture(e.pointerId); } catch (_) {}
+      _lbEl.classList.add("panning");
+    });
+    img.addEventListener("pointermove", (e) => {
+      if (!panning) return;
+      _lbTx = stx + (e.clientX - sx); _lbTy = sty + (e.clientY - sy);
+      if (Math.abs(e.clientX - sx) + Math.abs(e.clientY - sy) > 4) _lbDragged = true;
+      _lbClampPan(); _lbApply();
+    });
+    const endPan = () => { panning = false; _lbEl.classList.remove("panning"); };
+    img.addEventListener("pointerup", endPan);
+    img.addEventListener("pointercancel", endPan);
+
+    /* touch: swipe (1 finger @1x) · pan (1 finger zoomed) · pinch (2 fingers) */
+    let tx0 = 0, ty0 = 0, ptx = 0, pty = 0, pd0 = 0, ps0 = 1, mode = null;
+    stage.addEventListener("touchstart", (e) => {
+      if (e.touches.length === 2) { mode = "pinch"; pd0 = _touchDist(e.touches); ps0 = _lbScale; }
+      else if (e.touches.length === 1) {
+        mode = _lbScale > 1.01 ? "pan" : "swipe";
+        tx0 = e.touches[0].clientX; ty0 = e.touches[0].clientY; ptx = _lbTx; pty = _lbTy;
+      }
+      if (mode !== "swipe") _lbEl.classList.add("panning");
+    }, { passive:true });
+    stage.addEventListener("touchmove", (e) => {
+      if (mode === "pinch" && e.touches.length === 2) {
+        const d = _touchDist(e.touches);
+        _lbScale = Math.max(1, Math.min(5, ps0 * d / (pd0 || 1)));
+        if (_lbScale <= 1.01) { _lbTx = 0; _lbTy = 0; }
+        _lbClampPan(); _lbApply();
+      } else if (mode === "pan" && e.touches.length === 1) {
+        _lbTx = ptx + (e.touches[0].clientX - tx0);
+        _lbTy = pty + (e.touches[0].clientY - ty0);
+        _lbClampPan(); _lbApply();
+      }
+    }, { passive:true });
+    stage.addEventListener("touchend", (e) => {
+      if (mode === "swipe" && e.changedTouches.length) {
+        const dx = e.changedTouches[0].clientX - tx0;
+        const dy = e.changedTouches[0].clientY - ty0;
+        if (Math.abs(dx) > 48 && Math.abs(dx) > Math.abs(dy)) _lbNav(dx > 0 ? -1 : 1);
+      }
+      if (_lbScale <= 1.01) _lbResetZoom();
+      mode = null;
+      _lbEl.classList.remove("panning");
+    }, { passive:true });
   }
+
+  function _touchDist(t) { return Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY); }
+
+  function _lbApply() {
+    const img = document.getElementById("plbImg");
+    if (img) img.style.transform = `translate(${_lbTx}px,${_lbTy}px) scale(${_lbScale})`;
+    _lbEl.classList.toggle("zoomed", _lbScale > 1.01);
+    const lvl = document.getElementById("plbZoomLevel");
+    if (lvl) lvl.textContent = Math.round(_lbScale * 100) + "%";
+  }
+  function _lbClampPan() {
+    const img = document.getElementById("plbImg"), stage = _lbEl.querySelector(".plb-stage");
+    if (!img || !stage) return;
+    const sr = stage.getBoundingClientRect();
+    const ow = img.offsetWidth * _lbScale, oh = img.offsetHeight * _lbScale;
+    const maxX = Math.max(0, (ow - sr.width) / 2), maxY = Math.max(0, (oh - sr.height) / 2);
+    _lbTx = Math.max(-maxX, Math.min(maxX, _lbTx));
+    _lbTy = Math.max(-maxY, Math.min(maxY, _lbTy));
+  }
+  /* zoom by `factor`, keeping the point (px,py — measured from stage centre) stationary */
+  function _lbZoomAt(factor, px, py) {
+    const prev = _lbScale;
+    _lbScale = Math.max(1, Math.min(5, prev * factor));
+    const k = _lbScale / prev;
+    _lbTx = k * _lbTx + (1 - k) * px;
+    _lbTy = k * _lbTy + (1 - k) * py;
+    if (_lbScale <= 1.01) { _lbTx = 0; _lbTy = 0; }
+    _lbClampPan(); _lbApply();
+  }
+  function _lbResetZoom() { _lbScale = 1; _lbTx = 0; _lbTy = 0; _lbApply(); }
 
   function openPhotoLightbox(photos, idx) {
     _lbPhotos = photos;
     _lbIdx    = idx;
     _initLightbox();
+    _lbResetZoom();
     _lbRender();
     _lbEl.classList.add("open");
     document.body.classList.add("lb-open");
@@ -475,6 +587,7 @@
 
   function _lbNav(dir) {
     _lbIdx = (_lbIdx + dir + _lbPhotos.length) % _lbPhotos.length;
+    _lbResetZoom();
     _lbRender();
   }
 
@@ -482,8 +595,8 @@
     const ph = _lbPhotos[_lbIdx];
     const img = document.getElementById("plbImg");
     img.classList.remove("plb-loaded");
-    img.src = escapeHTML(ph.src || ph);
-    img.alt = ph.caption || "";
+    img.src = ph.src || ph;
+    img.alt = ph.alt || ph.caption || "";
     img.onload = () => img.classList.add("plb-loaded");
     const cap = document.getElementById("plbCaption");
     cap.textContent = ph.caption || "";
@@ -503,29 +616,40 @@
     grid.innerHTML = "";
     const photos = (DATA.photography && DATA.photography.photos) || [];
     if (!photos.length) {
+      grid.className = "photo-grid";
       const p = document.createElement("p"); p.className = "photo-empty";
       p.textContent = "ადმინ-რეჟიმში დაამატე ფოტოები →";
       grid.appendChild(p);
       return;
     }
+    grid.className = "gallery"; /* paintings-style 12-col grid (reuses .card[data-size]) */
     photos.forEach((ph, i) => {
-      const c = document.createElement("div"); c.className = "photo-card reveal";
+      const c = document.createElement("article");
+      c.className = "card photo-work-card reveal";
+      c.dataset.size = ph.size || "md";
+      c.dataset.pidx = i;
       c.innerHTML = `
-        <button class="photo-del admin-only" data-del-photo="${i}" title="წაშლა">✕</button>
-        <button class="photo-edit admin-only" data-edit-photo="${i}" title="რედაქტირება">✎</button>
-        <img src="${escapeHTML(ph.src)}" alt="${escapeHTML(ph.alt || ph.caption || "")}" title="${escapeHTML(ph.alt || ph.caption || "")}" loading="lazy">
-        ${(ph.caption || (ph.showPrice && ph.price)) ? `<div class="photo-cap">
-          ${ph.caption ? `<span class="photo-cap-text">${escapeHTML(ph.caption)}</span>` : ""}
-          ${(ph.showPrice && ph.price) ? `<span class="price-tag">${escapeHTML(ph.price)}</span>` : ""}
-        </div>` : ""}`;
+        <div class="media">
+          <div class="card-tools">
+            <button data-ptool="size" title="ზომა">⤢</button>
+            <button data-ptool="crop" title="კადრირება / pan-zoom">🖼</button>
+            <button data-ptool="edit" title="რედაქტირება">✎</button>
+            <button data-ptool="del"  title="წაშლა">✕</button>
+          </div>
+          <img src="${escapeHTML(ph.src)}" alt="${escapeHTML(ph.alt || ph.caption || "")}" title="${escapeHTML(ph.alt || ph.caption || "")}" loading="lazy"${_tfmStyle(ph)}>
+          <div class="view-cue">⤢</div>
+        </div>
+        ${(ph.caption || (ph.showPrice && ph.price)) ? `<div class="cap"><div class="tt">
+          ${ph.caption ? `<h3>${escapeHTML(ph.caption)}</h3>` : ""}
+          ${(ph.showPrice && ph.price) ? `<div class="price-tag">${escapeHTML(ph.price)}</div>` : ""}
+        </div></div>` : ""}`;
       c.addEventListener("click", (e) => {
-        if (e.target.closest(".photo-del"))   return;
-        if (e.target.closest(".photo-edit"))  return;
+        if (e.target.closest(".card-tools")) return;
         openPhotoLightbox(photos, i);
       });
       grid.appendChild(c);
     });
-    enableReorder([...grid.querySelectorAll(".photo-card")], photos, renderPhotography);
+    if (window.DPAdmin && window.DPAdmin.wirePhotoCards) window.DPAdmin.wirePhotoCards();
     observeReveal();
   }
 
@@ -563,38 +687,83 @@
         main.appendChild(sec);
       }
       sec.dataset.cs = cs.id;
-      const imgs = cs.images || [];
-      const imgHTML = imgs.map((im, i) => `
-        <div class="photo-card reveal" data-cs-img="${cs.id}:${i}">
-          <button class="photo-del admin-only" data-cs-delimg="${cs.id}:${i}" title="წაშლა">✕</button>
-          <button class="photo-edit admin-only" data-cs-editimg="${cs.id}:${i}" title="რედაქტირება">✎</button>
-          <img src="${escapeHTML(im.src)}" alt="${escapeHTML(im.alt || im.caption || "")}" title="${escapeHTML(im.alt || im.caption || "")}" loading="lazy">
-          ${im.caption ? `<div class="photo-cap"><span class="photo-cap-text">${escapeHTML(im.caption)}</span></div>` : ""}
-        </div>`).join("");
+      sec.dataset.type = cs.type || "content";
+      const isVideo = cs.type === "video";
 
-      sec.innerHTML = `
-        <div class="wrap">
-          <div class="sec-head">
-            <div>
-              <span class="sec-num" data-edit="customSections.${idx}.eyebrow">${escapeHTML(cs.eyebrow || "")}</span>
-              <h2 class="reveal" data-edit="customSections.${idx}.heading">${escapeHTML(cs.heading || "")}</h2>
-            </div>
-            <p class="hand" style="max-width:30ch" data-edit="customSections.${idx}.intro">${escapeHTML(cs.intro || "")}</p>
+      const head = `
+        <div class="sec-head">
+          <div>
+            <span class="sec-num" data-edit="customSections.${idx}.eyebrow">${escapeHTML(cs.eyebrow || "")}</span>
+            <h2 class="reveal" data-edit="customSections.${idx}.heading">${escapeHTML(cs.heading || "")}</h2>
           </div>
-          ${(cs.body || isAdmin) ? `<p class="cs-body reveal" data-edit="customSections.${idx}.body">${escapeHTML(cs.body || "")}</p>` : ""}
-          ${(imgHTML || isAdmin) ? `<div class="photo-grid cs-grid">${imgHTML}</div>` : ""}
-          <button class="admin-add admin-only" data-cs-addimg="${cs.id}">+ სურათის ატვირთვა</button>
-        </div>`;
+          <p class="hand" style="max-width:30ch" data-edit="customSections.${idx}.intro">${escapeHTML(cs.intro || "")}</p>
+        </div>
+        ${(cs.body || isAdmin) ? `<p class="cs-body reveal" data-edit="customSections.${idx}.body">${escapeHTML(cs.body || "")}</p>` : ""}`;
 
-      /* lightbox on image click (non-admin click-through) */
-      sec.querySelectorAll("[data-cs-img]").forEach(card => {
-        card.addEventListener("click", (e) => {
-          if (e.target.closest(".photo-del") || e.target.closest(".photo-edit")) return;
-          const i = parseInt(card.dataset.csImg.split(":")[1], 10);
-          openPhotoLightbox(imgs, i);
+      let mediaHTML, addBtn;
+      if (isVideo) {
+        const vids = cs.videos || [];
+        const vidHTML = vids.map((v, i) => {
+          const embed = toEmbed(v.src);
+          const player = embed
+            ? `<iframe src="${embed}" allow="autoplay; encrypted-media; fullscreen; picture-in-picture" allowfullscreen loading="lazy"></iframe>`
+            : `<video src="${escapeHTML(v.src)}" controls preload="metadata" playsinline></video>`;
+          return `
+            <article class="card video-card reveal" data-size="${v.size || 'lg'}" data-cs-vidx="${cs.id}:${i}">
+              <div class="media video-media">
+                <div class="card-tools">
+                  <button data-cs-vtool="size:${cs.id}:${i}" title="ზომა">⤢</button>
+                  <button data-cs-vtool="edit:${cs.id}:${i}" title="რედაქტირება">✎</button>
+                  <button data-cs-vtool="del:${cs.id}:${i}" title="წაშლა">✕</button>
+                </div>
+                ${player}
+              </div>
+              ${v.title ? `<div class="cap"><div class="tt"><h3>${escapeHTML(v.title)}</h3></div></div>` : ""}
+            </article>`;
+        }).join("");
+        mediaHTML = (vidHTML || isAdmin) ? `<div class="gallery video-gallery cs-videos">${vidHTML}</div>` : "";
+        addBtn = `<button class="admin-add admin-only" data-cs-addvid="${cs.id}">+ ვიდეოს დამატება</button>`;
+      } else {
+        const imgs = cs.images || [];
+        const imgHTML = imgs.map((im, i) => `
+          <article class="card photo-work-card reveal" data-size="${im.size || 'md'}" data-cs-img="${cs.id}:${i}">
+            <div class="media">
+              <div class="card-tools">
+                <button data-cs-itool="size:${cs.id}:${i}" title="ზომა">⤢</button>
+                <button data-cs-itool="crop:${cs.id}:${i}" title="კადრირება">🖼</button>
+                <button data-cs-itool="edit:${cs.id}:${i}" title="რედაქტირება">✎</button>
+                <button data-cs-itool="del:${cs.id}:${i}" title="წაშლა">✕</button>
+              </div>
+              <img src="${escapeHTML(im.src)}" alt="${escapeHTML(im.alt || im.caption || "")}" title="${escapeHTML(im.alt || im.caption || "")}" loading="lazy"${_tfmStyle(im)}>
+              <div class="view-cue">⤢</div>
+            </div>
+            ${im.caption ? `<div class="cap"><div class="tt"><h3>${escapeHTML(im.caption)}</h3></div></div>` : ""}
+          </article>`).join("");
+        mediaHTML = (imgHTML || isAdmin) ? `<div class="gallery cs-grid">${imgHTML}</div>` : "";
+        addBtn = `<button class="admin-add admin-only" data-cs-addimg="${cs.id}">+ სურათის ატვირთვა</button>`;
+      }
+
+      sec.innerHTML = `<div class="wrap">${head}${mediaHTML}${addBtn}</div>`;
+
+      /* lightbox on image click (content sections; admin click-through to tools) */
+      if (!isVideo) {
+        const imgs = cs.images || [];
+        sec.querySelectorAll("[data-cs-img]").forEach(card => {
+          card.addEventListener("click", (e) => {
+            if (e.target.closest(".card-tools")) return;
+            const i = parseInt(card.dataset.csImg.split(":")[1], 10);
+            openPhotoLightbox(imgs, i);
+          });
         });
-      });
+      }
     });
+    if (window.DPAdmin && window.DPAdmin.wireCustomMedia) window.DPAdmin.wireCustomMedia();
+  }
+
+  /* inline transform style for a photo/image object (pixel-precise pan/zoom) */
+  function _tfmStyle(o) {
+    const t = o && o.imgTransform;
+    return t ? ` style="transform:translate(${t.x||0}px,${t.y||0}px) scale(${t.s||1})"` : "";
   }
 
   function renderAll() {
@@ -1403,7 +1572,7 @@
     renderGallery, renderStudio, renderExhibitions, renderJournal,
     renderAbout, renderHero, renderPhotography, bindEditables,
     bindStaticText, applyHiddenSections, renderNav,
-    renderCustomSections, applySectionOrder,
+    renderCustomSections, applySectionOrder, enableReorder, openPhotoLightbox,
     workById, imgFor,
     getPath, setPath, clone, toast, $, $$,
     openDetail, renderDetail, openPurchaseModal,
