@@ -773,6 +773,8 @@
     openModal(`
       <h3>Cover Gallery</h3>
       <div class="modal-note">ნამუშევრები რომელიც მთავარ gallery-ში გამოჩნდება. ცარიელი = ყველა.</div>
+      <label>Featured / საწყისი ნამუშევარი (hero-ს პირველი სლაიდი)</label>
+      <select id="cpFeatured">${works.map(w => `<option value="${w.id}" ${w.id === D.data.hero.featuredWorkId ? "selected" : ""}>${esc(w.title)}</option>`).join("")}</select>
       <label>ნამუშევრის შერჩევა (დაჭერით)</label>
       <div class="cover-pick-grid" id="cpGrid">${grid}</div>
       <label>შერჩეული — cover gallery თანმიმდევრობა</label>
@@ -828,6 +830,7 @@
 
     $("#mSave").onclick = () => {
       D.data.hero.sliderWorkIds = chosen.slice();
+      const feat = $("#cpFeatured"); if (feat) D.data.hero.featuredWorkId = feat.value;
       D.save();
       /* re-init slider */
       const hero = document.getElementById("hero");
@@ -835,6 +838,7 @@
         hero.querySelectorAll(".hero-arrow,.hero-dots,.hero-counter").forEach(el => el.remove());
         if (D.initHeroSlider) D.initHeroSlider();
       }
+      if (D.renderHero) D.renderHero();
       closeModal();
       D.toast("✓ Cover gallery შენახულია");
     };
@@ -1104,41 +1108,140 @@
   });
 
   /* ── Section toggle panel ── */
+  const BUILTIN_SECTIONS = {
+    works:'Works / Portfolio', about:'About the Artist', studio:'Studio / Process',
+    exhibitions:'Exhibitions & Awards', journal:'Journal / Notes', photography:'Photography', contact:'Contact'
+  };
+
+  /* current ordered list of all section ids (built-in + custom), de-duped */
+  function allSectionIds() {
+    const meta = D.data.meta;
+    const custom = (D.data.customSections || []).map(c => "cs-" + c.id);
+    const existing = [...Object.keys(BUILTIN_SECTIONS), ...custom];
+    let order = (meta.sectionOrder || []).filter(id => existing.includes(id));
+    existing.forEach(id => { if (!order.includes(id)) order.push(id); });
+    return order;
+  }
+  function sectionLabel(id) {
+    if (id.startsWith("cs-")) {
+      const cs = (D.data.customSections || []).find(c => "cs-" + c.id === id);
+      return (cs && (cs.heading || cs.eyebrow)) || "Custom section";
+    }
+    return BUILTIN_SECTIONS[id] || id;
+  }
+
+  function addCustomSection() {
+    const id = Date.now().toString(36);
+    D.data.customSections = D.data.customSections || [];
+    const n = D.data.customSections.length + 1;
+    D.data.customSections.push({
+      id,
+      eyebrow: String(7 + n).padStart(2, "0") + " — SECTION",
+      heading: "New Section",
+      intro: "",
+      body: "",
+      images: []
+    });
+    D.data.meta.sectionOrder = D.data.meta.sectionOrder || [];
+    D.data.meta.sectionOrder.push("cs-" + id);
+    D.save();
+    D.rerender();
+    if (isAdmin()) makeTextEditable(true);
+    return id;
+  }
+
+  function csTextModal(csId) {
+    const cs = (D.data.customSections || []).find(c => c.id === csId); if (!cs) return;
+    openModal(`
+      <h3>სექციის ტექსტი</h3>
+      <label>Eyebrow / ნომერი</label><input id="csE" value="${attr(cs.eyebrow || "")}">
+      <label>სათაური</label><input id="csH" value="${attr(cs.heading || "")}">
+      <label>Intro (პატარა ტექსტი გვერდით)</label><textarea id="csI" rows="2">${esc(cs.intro || "")}</textarea>
+      <label>ძირითადი ტექსტი</label><textarea id="csB" rows="5">${esc(cs.body || "")}</textarea>
+      <div class="modal-actions">
+        <button class="cancel" id="mCancel">Cancel</button>
+        <button class="save" id="mSave">Save</button>
+      </div>`);
+    $("#mSave").onclick = () => {
+      cs.eyebrow = $("#csE").value; cs.heading = $("#csH").value;
+      cs.intro = $("#csI").value; cs.body = $("#csB").value;
+      D.save(); D.renderCustomSections(); if (isAdmin()) makeTextEditable(true);
+      closeModal(); D.toast("შენახულია");
+    };
+    $("#mCancel").onclick = closeModal;
+  }
+
+  function deleteCustomSection(csId) {
+    if (!confirm("წავშალო ეს სექცია მთლიანად?")) return;
+    D.data.customSections = (D.data.customSections || []).filter(c => c.id !== csId);
+    const domId = "cs-" + csId;
+    if (D.data.meta.sectionOrder) D.data.meta.sectionOrder = D.data.meta.sectionOrder.filter(x => x !== domId);
+    if (D.data.meta.hiddenSections) D.data.meta.hiddenSections = D.data.meta.hiddenSections.filter(x => x !== domId);
+    D.save(); D.rerender(); openSectionsPanel();
+  }
+
   function openSectionsPanel() {
-    const SECS = [
-      { id:'works',        label:'Works / Portfolio' },
-      { id:'about',        label:'About the Artist' },
-      { id:'studio',       label:'Studio / Process' },
-      { id:'exhibitions',  label:'Exhibitions & Awards' },
-      { id:'journal',      label:'Journal / Notes' },
-      { id:'photography',  label:'Photography' },
-      { id:'contact',      label:'Contact' },
-    ];
-    if (!D.data.meta.hiddenSections) D.data.meta.hiddenSections = [];
-    const hidden = D.data.meta.hiddenSections;
+    const meta = D.data.meta;
+    meta.hiddenSections = meta.hiddenSections || [];
+    const hidden = meta.hiddenSections;
+    const ids = allSectionIds();
 
     openModal(`
       <h3>⚡ სექციების მართვა</h3>
-      <div class="modal-note">გამორთული სექციები საიტიდანაც და ნავიგაციიდანაც გაქრება.</div>
-      <div class="sections-list">
-        ${SECS.map(s => `
-          <div class="section-toggle-row">
-            <span class="sec-toggle-label">${s.label}</span>
+      <div class="modal-note">გადაათრიე რიგის შესაცვლელად · გადამრთველით ჩართე/გამორთე · custom სექციებს ხედავ ✎/🗑 ღილაკებით.</div>
+      <div class="sections-list" id="secList">
+        ${ids.map(id => {
+          const isCustom = id.startsWith("cs-");
+          const csId = isCustom ? id.slice(3) : "";
+          return `
+          <div class="section-toggle-row" draggable="true" data-sid="${id}">
+            <span class="sec-grip" title="გადათრევა">⠿</span>
+            <span class="sec-toggle-label">${esc(sectionLabel(id))}${isCustom ? ' <em style="opacity:.6;font-style:normal">· custom</em>' : ''}</span>
+            ${isCustom ? `<button class="sec-cs-btn" data-cs-edit="${csId}" title="ტექსტის რედაქტირება">✎</button>
+                          <button class="sec-cs-btn danger" data-cs-del="${csId}" title="წაშლა">🗑</button>` : ''}
             <label class="sec-toggle-switch">
-              <input type="checkbox" data-sec="${s.id}" ${!hidden.includes(s.id) ? 'checked' : ''}>
+              <input type="checkbox" data-sec="${id}" ${!hidden.includes(id) ? 'checked' : ''}>
               <span class="sec-toggle-track"></span>
             </label>
-          </div>`).join("")}
+          </div>`;
+        }).join("")}
       </div>
+      <button type="button" class="admin-add" id="secAddCustom" style="display:block;margin-top:10px">+ ახალი სექცია</button>
       <div class="modal-actions" style="margin-top:14px">
         <button class="cancel" id="mCancel">გაუქმება</button>
         <button class="save" id="mSave">💾 შენახვა</button>
       </div>`);
+
+    /* drag-reorder rows */
+    const listEl = $("#secList");
+    let fromRow = null;
+    listEl.querySelectorAll(".section-toggle-row").forEach(row => {
+      row.addEventListener("dragstart", () => { fromRow = row; row.classList.add("drag-active"); });
+      row.addEventListener("dragend", () => { fromRow = null; listEl.querySelectorAll(".section-toggle-row").forEach(r => r.classList.remove("drag-active","drop-target")); });
+      row.addEventListener("dragover", (e) => { e.preventDefault(); row.classList.add("drop-target"); });
+      row.addEventListener("dragleave", () => row.classList.remove("drop-target"));
+      row.addEventListener("drop", (e) => {
+        e.preventDefault(); row.classList.remove("drop-target");
+        if (!fromRow || fromRow === row) return;
+        const rows = [...listEl.children];
+        if (rows.indexOf(fromRow) < rows.indexOf(row)) row.after(fromRow); else row.before(fromRow);
+      });
+    });
+
+    /* per-custom buttons */
+    listEl.querySelectorAll("[data-cs-edit]").forEach(b => b.onclick = (e) => { e.stopPropagation(); csTextModal(b.dataset.csEdit); });
+    listEl.querySelectorAll("[data-cs-del]").forEach(b => b.onclick = (e) => { e.stopPropagation(); deleteCustomSection(b.dataset.csDel); });
+
+    $("#secAddCustom").onclick = () => { addCustomSection(); openSectionsPanel(); };
+
     $("#mCancel").onclick = closeModal;
     $("#mSave").onclick = () => {
-      D.data.meta.hiddenSections = [...modalBox.querySelectorAll("[data-sec]")]
-        .filter(cb => !cb.checked).map(cb => cb.dataset.sec);
+      /* order from DOM rows */
+      meta.sectionOrder = [...listEl.querySelectorAll(".section-toggle-row")].map(r => r.dataset.sid);
+      /* hidden = unchecked */
+      meta.hiddenSections = [...modalBox.querySelectorAll("[data-sec]")].filter(cb => !cb.checked).map(cb => cb.dataset.sec);
       D.save();
+      D.applySectionOrder();
       D.applyHiddenSections();
       closeModal();
       D.toast("✓ სექციები შენახულია");
@@ -1265,8 +1368,10 @@
           ${f("contact.heading","Heading",true,2)}
           ${f("contact.intro","Intro paragraph",true,2)}
           ${f("contact.email","Email")}
-          ${f("contact.instagram","Instagram handle")}
-          ${f("contact.behance","Behance link")}
+          ${f("contact.instagram","Instagram handle (ჩანს)")}
+          ${f("contact.instagramUrl","Instagram ბმული (https://…)")}
+          ${f("contact.behance","Behance handle (ჩანს)")}
+          ${f("contact.behanceUrl","Behance ბმული (https://…)")}
           ${f("contact.formNote","Form label")}
         </div>
 
@@ -1319,6 +1424,12 @@
           ${f("ui.form.okMsg","Success message")}
         </div>
 
+        <div class="tp-section">
+          <div class="tp-section-title">12 — Security</div>
+          ${f("meta.adminPassword","Admin password (შესვლის პაროლი)")}
+          <div class="modal-note">⚠ პაროლის შეცვლის შემდეგ შემდეგ ჯერზე ახალი პაროლით შედი.</div>
+        </div>
+
       </div>
       <div class="modal-actions" style="margin-top:14px;position:sticky;bottom:0;background:var(--paper);padding-top:8px">
         <button class="cancel" id="mCancel">Cancel</button>
@@ -1329,13 +1440,15 @@
     document.getElementById("modalBox").classList.add("modal-wide");
 
     /* ---- Nav-links repeater (label + target) ---- */
-    const SECTION_IDS = ["works","about","studio","exhibitions","photography","journal","contact"];
+    const SECTION_IDS = ["works","about","studio","exhibitions","photography","journal","contact",
+      ...(D.data.customSections || []).map(c => "cs-" + c.id)];
     const navRows = document.getElementById("tpNavRows");
     const navRowHTML = (label, target) => `
       <div class="tp-nav-row" style="display:flex;gap:6px;margin-bottom:6px;align-items:center">
         <input class="tp-nav-label" value="${attr(label || "")}" placeholder="Label" style="flex:1">
         <select class="tp-nav-target" style="flex:1">
           ${SECTION_IDS.map(s => `<option value="${s}" ${s === target ? "selected" : ""}>${s}</option>`).join("")}
+          ${target && !SECTION_IDS.includes(target) ? `<option value="${attr(target)}" selected>${esc(target)}</option>` : ""}
         </select>
         <button type="button" class="tp-nav-del danger" title="წაშლა" style="flex:0 0 auto;padding:6px 9px">✕</button>
       </div>`;
@@ -1382,8 +1495,150 @@
     openTextPanel, openCropModal, openSectionsPanel,
     editExhibition: exModal, editPost: postModal,
     uploadImage,    /* used by app.js for photo uploads */
+    refreshEditable: () => makeTextEditable(isAdmin()), /* re-bind inline edit after dynamic render */
     _adminPassword, /* synced by enterAdmin() / exitAdmin() */
   };
+
+  /* ===================================================================
+     CUSTOM SECTION — image add / edit / delete (delegated)
+     =================================================================== */
+  function csById(id) { return (D.data.customSections || []).find(s => s.id === id); }
+
+  function csImageModal(sectionId, imgIdx) {
+    const cs = csById(sectionId); if (!cs) return;
+    cs.images = cs.images || [];
+    const editing = imgIdx != null;
+    const im = editing ? cs.images[imgIdx] : { src: "", alt: "", caption: "" };
+    openModal(`
+      <h3>${editing ? "სურათის რედაქტირება" : "სურათის დამატება"}</h3>
+      ${editing ? `<img id="csPrev" src="${esc(im.src)}" style="width:100%;max-height:180px;object-fit:cover;border:2px solid var(--ink);margin-bottom:10px">` : ""}
+      <label>ფაილის ატვირთვა (.jpg .png .tif .heic .raw …)</label>
+      <input type="file" id="csFile" accept="image/*,.tif,.tiff,.heic,.heif,.raw,.dng,.cr2,.nef,.arw,.psd">
+      <label>ან სურათის URL</label>
+      <input id="csUrl" value="${editing ? attr(im.src) : ""}" placeholder="https://…">
+      <label>სურათის სახელი / Alt (SEO)</label>
+      <input id="csAlt" value="${attr(im.alt || "")}" placeholder="მაგ: Studio wall, 2026">
+      <label>Caption (ჩანს სურათზე, სურვილისამებრ)</label>
+      <input id="csCap" value="${attr(im.caption || "")}">
+      <div class="modal-actions">
+        <button class="cancel" id="mCancel">Cancel</button>
+        <button class="save" id="mSave">${editing ? "Save" : "Add"}</button>
+      </div>`);
+    let uploaded = null;
+    $("#csFile").onchange = async (e) => {
+      if (e.target.files[0]) {
+        uploaded = await uploadImage(e.target.files[0], null, $("#csAlt").value.trim());
+        const p = $("#csPrev"); if (p) p.src = uploaded;
+      }
+    };
+    $("#mSave").onclick = () => {
+      const src = uploaded || $("#csUrl").value.trim() || (editing ? im.src : "");
+      if (!src) { D.toast("ატვირთე სურათი ან მიუთითე URL"); return; }
+      const rec = { src, alt: $("#csAlt").value.trim(), caption: $("#csCap").value.trim() };
+      if (editing) cs.images[imgIdx] = rec; else cs.images.push(rec);
+      D.save(); D.renderCustomSections();
+      if (isAdmin()) makeTextEditable(true);
+      closeModal(); D.toast(editing ? "შენახულია" : "სურათი დაემატა");
+    };
+    $("#mCancel").onclick = closeModal;
+  }
+
+  document.addEventListener("click", (e) => {
+    if (!isAdmin()) return;
+    const add = e.target.closest("[data-cs-addimg]");
+    if (add) { e.stopPropagation(); csImageModal(add.dataset.csAddimg, null); return; }
+    const del = e.target.closest("[data-cs-delimg]");
+    if (del) {
+      e.stopPropagation();
+      const [sid, i] = del.dataset.csDelimg.split(":");
+      const cs = csById(sid);
+      if (cs && cs.images) { cs.images.splice(+i, 1); D.save(); D.renderCustomSections(); makeTextEditable(true); }
+      return;
+    }
+    const ed = e.target.closest("[data-cs-editimg]");
+    if (ed) {
+      e.stopPropagation();
+      const [sid, i] = ed.dataset.csEditimg.split(":");
+      csImageModal(sid, +i);
+    }
+  });
+
+  /* ===================================================================
+     STUDIO SLIDES — add / edit / delete / reorder (process strip)
+     =================================================================== */
+  function studioSlideModal(idx) {
+    const works = D.data.works;
+    if (!D.data.studio) D.data.studio = { heading: "STUDIO", intro: "", captions: [] };
+    if (!D.data.studio.captions) D.data.studio.captions = [];
+    const caps = D.data.studio.captions;
+    const editing = idx != null;
+    const cap = editing ? caps[idx] : { workId: works[0] && works[0].id, label: "" };
+    const pos = editing ? idx + 1 : caps.length + 1;
+    openModal(`
+      <h3>${editing ? "სლაიდის რედაქტირება" : "ახალი სლაიდი"}</h3>
+      <label>ნამუშევარი (სურათი)</label>
+      <select id="ssWork">${works.map(w => `<option value="${w.id}" ${w.id === cap.workId ? "selected" : ""}>${esc(w.title)}</option>`).join("")}</select>
+      <label>წარწერა / Caption</label>
+      <input id="ssLabel" value="${attr(cap.label || "")}" placeholder="First marks — chalk on blue ground">
+      <label>პოზიცია (რიგი)</label>
+      <input id="ssPos" type="number" min="1" max="${caps.length + 1}" value="${pos}">
+      <div class="modal-actions">
+        <button class="cancel" id="mCancel">Cancel</button>
+        <button class="save" id="mSave">${editing ? "Save" : "Add"}</button>
+      </div>`);
+    $("#mSave").onclick = () => {
+      const rec = { workId: $("#ssWork").value, label: $("#ssLabel").value.trim() };
+      let newPos = Math.max(1, Math.min(caps.length + (editing ? 0 : 1), parseInt($("#ssPos").value, 10) || pos)) - 1;
+      if (editing) { caps.splice(idx, 1); caps.splice(newPos, 0, rec); }
+      else { caps.splice(newPos, 0, rec); }
+      D.save(); D.renderStudio(); closeModal(); D.toast("შენახულია");
+    };
+    $("#mCancel").onclick = closeModal;
+  }
+
+  /* ===================================================================
+     ABOUT — portrait image picker + note chips
+     =================================================================== */
+  function aboutModal() {
+    const works = D.data.works;
+    const ab = D.data.about;
+    openModal(`
+      <h3>About — პორტრეტი და ჩანაწერები</h3>
+      <label>პორტრეტის სურათი (ნამუშევარი)</label>
+      <select id="abWork">${works.map(w => `<option value="${w.id}" ${w.id === ab.portraitWorkId ? "selected" : ""}>${esc(w.title)}</option>`).join("")}</select>
+      <label>პატარა წარწერა 1 (პორტრეტზე)</label><input id="abN1" value="${attr(ab.studioNote1 || "")}">
+      <label>პატარა წარწერა 2 (პორტრეტზე)</label><input id="abN2" value="${attr(ab.studioNote2 || "")}">
+      <label>Note chips (თითო ხაზზე ერთი)</label>
+      <textarea id="abNotes" rows="4">${esc((ab.notes || []).join("\n"))}</textarea>
+      <div class="modal-actions">
+        <button class="cancel" id="mCancel">Cancel</button>
+        <button class="save" id="mSave">Save</button>
+      </div>`);
+    $("#mSave").onclick = () => {
+      ab.portraitWorkId = $("#abWork").value;
+      ab.studioNote1 = $("#abN1").value.trim();
+      ab.studioNote2 = $("#abN2").value.trim();
+      ab.notes = $("#abNotes").value.split("\n").map(s => s.trim()).filter(Boolean);
+      D.save(); D.renderAbout(); D.bindStaticText(); closeModal(); D.toast("შენახულია");
+    };
+    $("#mCancel").onclick = closeModal;
+  }
+
+  document.addEventListener("click", (e) => {
+    if (!isAdmin()) return;
+    if (e.target.closest("#addStudioSlide")) { e.stopPropagation(); studioSlideModal(null); return; }
+    const sed = e.target.closest("[data-studio-edit]");
+    if (sed) { e.stopPropagation(); studioSlideModal(+sed.dataset.studioEdit); return; }
+    const sdel = e.target.closest("[data-studio-del]");
+    if (sdel) {
+      e.stopPropagation();
+      const i = +sdel.dataset.studioDel;
+      if (confirm("წავშალო ეს სლაიდი?")) { D.data.studio.captions.splice(i, 1); D.save(); D.renderStudio(); }
+      return;
+    }
+    /* click the About portrait (admin) to manage it */
+    if (e.target.closest("#aboutPortrait")) { e.stopPropagation(); aboutModal(); }
+  });
 
   /* ---------- helpers ---------- */
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c])); }

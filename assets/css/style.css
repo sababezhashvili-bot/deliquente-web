@@ -1146,6 +1146,36 @@ body.admin .reorderable{cursor:grab}
 body.admin .reorderable.drag-active{opacity:.4}
 body.admin .reorderable.drop-target{outline:3px solid var(--blue);outline-offset:3px}
 
+/* ── custom sections ── */
+.custom-section .wrap{padding-top:clamp(40px,7vw,90px);padding-bottom:clamp(40px,7vw,90px)}
+.cs-body{max-width:64ch;font-size:clamp(1rem,1.6vw,1.2rem);line-height:1.7;margin:18px 0 28px;white-space:pre-wrap}
+.cs-grid{margin-top:18px}
+
+/* ── sections manager rows (drag-reorder + custom buttons) ── */
+.section-toggle-row{display:flex;align-items:center;gap:10px}
+.section-toggle-row .sec-toggle-label{flex:1}
+.sec-grip{cursor:grab;color:var(--grey);font-size:1.1rem;line-height:1;user-select:none;flex:0 0 auto}
+.section-toggle-row.drag-active{opacity:.45}
+.section-toggle-row.drop-target{outline:2px solid var(--blue);outline-offset:2px}
+.sec-cs-btn{flex:0 0 auto;border:1.5px solid var(--ink);background:none;padding:4px 8px;cursor:pointer;font-size:.8rem;border-radius:3px}
+.sec-cs-btn.danger{border-color:var(--red);color:var(--red)}
+.sec-cs-btn:hover{background:var(--ink);color:var(--paper)}
+.sec-cs-btn.danger:hover{background:var(--red);color:var(--paper);border-color:var(--red)}
+
+/* ── studio process strip: admin add/edit/delete ── */
+.hslide .ph{position:relative}
+.hslide-del,.hslide-edit{display:none;position:absolute;top:8px;width:30px;height:30px;z-index:5;
+  border:none;border-radius:50%;cursor:pointer;font-size:.85rem;align-items:center;justify-content:center}
+.hslide-del{right:8px;background:var(--red);color:#fff}
+.hslide-edit{right:44px;background:var(--ink);color:var(--paper)}
+body.admin .hslide-del,body.admin .hslide-edit{display:flex}
+.hslide-add{display:none;flex:0 0 auto;align-self:center;min-width:130px;height:120px;margin-left:8px;
+  border:2px dashed var(--ink);background:none;cursor:pointer;font-family:var(--f-mono);font-size:.72rem;letter-spacing:.1em}
+.hslide-add:hover{background:rgba(0,0,0,.05)}
+body.admin .hslide-add{display:inline-flex;align-items:center;justify-content:center}
+body.admin #aboutPortrait{cursor:pointer}
+body.admin #aboutPortrait:hover{outline:3px solid var(--blue);outline-offset:3px}
+
 /* ── ABOUT notes: subtler dashed tags ── */
 .about-notes span{
   border:1px dashed rgba(245,241,232,.28);

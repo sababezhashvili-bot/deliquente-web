@@ -197,19 +197,39 @@
     applyHiddenSections();
   }
 
-  /* Show/hide sections (and their nav links) based on meta.hiddenSections */
+  /* Show/hide sections (and their nav links) based on meta.hiddenSections.
+     Works for built-in sections AND custom ones (id starts with "cs-"). */
   function applyHiddenSections() {
     const hidden  = (DATA.meta && DATA.meta.hiddenSections) || [];
     const isAdmin = document.body.classList.contains("admin");
-    ['works','about','studio','exhibitions','photography','journal','contact'].forEach(id => {
-      const sec = document.getElementById(id);
-      const lnk = document.querySelector(`.nav-links a[href="#${id}"]`);
+    /* every section that has an id (built-in + custom) */
+    document.querySelectorAll('main > section[id], .custom-section[id]').forEach(sec => {
+      const id   = sec.id;
       const hide = hidden.includes(id);
-      if (sec) {
-        sec.style.display = (!isAdmin && hide) ? 'none' : '';
-        sec.classList.toggle('section-hidden-admin', isAdmin && hide);
-      }
-      if (lnk) lnk.style.display = hide ? 'none' : '';
+      sec.style.display = (!isAdmin && hide) ? 'none' : '';
+      sec.classList.toggle('section-hidden-admin', isAdmin && hide);
+    });
+    /* nav links: hide a link whose target section is hidden */
+    document.querySelectorAll('.nav-links a[data-nav-link]').forEach(lnk => {
+      const target = lnk.getAttribute('data-nav-link');
+      lnk.style.display = hidden.includes(target) ? 'none' : '';
+    });
+  }
+
+  /* Reorder sections inside <main> according to meta.sectionOrder.
+     Hero (<header>) always stays first; unknown/unlisted sections keep trailing. */
+  function applySectionOrder() {
+    const main = document.getElementById('top');
+    if (!main) return;
+    const order = (DATA.meta && DATA.meta.sectionOrder) || [];
+    if (!order.length) return;
+    order.forEach(id => {
+      const sec = document.getElementById(id);
+      if (sec && sec.parentElement === main) main.appendChild(sec);
+    });
+    /* any section not named in the order list is appended after, in DOM order */
+    main.querySelectorAll(':scope > section[id]').forEach(sec => {
+      if (!order.includes(sec.id)) main.appendChild(sec);
     });
   }
 
@@ -315,15 +335,25 @@
 
   function renderStudio() {
     const h = $("#hscroll"); h.innerHTML = "";
+    const isAdmin = document.body.classList.contains("admin");
     DATA.studio.captions.forEach((cap, i) => {
       const w = workById(cap.workId);
       const s = document.createElement("div"); s.className = "hslide reveal";
       s.innerHTML = `
         <div class="ph"><span class="num">${String(i + 1).padStart(2, "0")} / PROCESS</span>
+          <button class="hslide-del admin-only" data-studio-del="${i}" title="წაშლა">✕</button>
+          <button class="hslide-edit admin-only" data-studio-edit="${i}" title="რედაქტირება">✎</button>
           <img src="${w ? w.img : ""}" alt="${escapeHTML(cap.label)}" loading="lazy"></div>
         <div class="cap">${escapeHTML(cap.label)}</div>`;
       h.appendChild(s);
     });
+    if (isAdmin) {
+      const add = document.createElement("button");
+      add.className = "hslide-add admin-only";
+      add.id = "addStudioSlide";
+      add.textContent = "+ სლაიდი";
+      h.appendChild(add);
+    }
     enableDragScroll(h);
     observeReveal();
   }
@@ -506,10 +536,70 @@
     $("#cBe").href = c.behanceUrl || "#";
   }
 
+  /* ===================================================================
+     CUSTOM SECTIONS — admin-created flexible sections
+     (eyebrow + heading + intro + body text + image grid)
+     =================================================================== */
+  function renderCustomSections() {
+    const main = document.getElementById("top");
+    if (!main) return;
+    const list = DATA.customSections || [];
+    const wantIds = list.map(cs => "cs-" + cs.id);
+
+    /* remove DOM custom sections that no longer exist in data */
+    main.querySelectorAll(".custom-section").forEach(sec => {
+      if (!wantIds.includes(sec.id)) sec.remove();
+    });
+
+    const isAdmin = document.body.classList.contains("admin");
+
+    list.forEach((cs, idx) => {
+      const domId = "cs-" + cs.id;
+      let sec = document.getElementById(domId);
+      if (!sec) {
+        sec = document.createElement("section");
+        sec.className = "section custom-section";
+        sec.id = domId;
+        main.appendChild(sec);
+      }
+      sec.dataset.cs = cs.id;
+      const imgs = cs.images || [];
+      const imgHTML = imgs.map((im, i) => `
+        <div class="photo-card reveal" data-cs-img="${cs.id}:${i}">
+          <button class="photo-del admin-only" data-cs-delimg="${cs.id}:${i}" title="წაშლა">✕</button>
+          <button class="photo-edit admin-only" data-cs-editimg="${cs.id}:${i}" title="რედაქტირება">✎</button>
+          <img src="${escapeHTML(im.src)}" alt="${escapeHTML(im.alt || im.caption || "")}" title="${escapeHTML(im.alt || im.caption || "")}" loading="lazy">
+          ${im.caption ? `<div class="photo-cap"><span class="photo-cap-text">${escapeHTML(im.caption)}</span></div>` : ""}
+        </div>`).join("");
+
+      sec.innerHTML = `
+        <div class="wrap">
+          <div class="sec-head">
+            <div>
+              <span class="sec-num" data-edit="customSections.${idx}.eyebrow">${escapeHTML(cs.eyebrow || "")}</span>
+              <h2 class="reveal" data-edit="customSections.${idx}.heading">${escapeHTML(cs.heading || "")}</h2>
+            </div>
+            <p class="hand" style="max-width:30ch" data-edit="customSections.${idx}.intro">${escapeHTML(cs.intro || "")}</p>
+          </div>
+          ${(cs.body || isAdmin) ? `<p class="cs-body reveal" data-edit="customSections.${idx}.body">${escapeHTML(cs.body || "")}</p>` : ""}
+          ${(imgHTML || isAdmin) ? `<div class="photo-grid cs-grid">${imgHTML}</div>` : ""}
+          <button class="admin-add admin-only" data-cs-addimg="${cs.id}">+ სურათის ატვირთვა</button>
+        </div>`;
+
+      /* lightbox on image click (non-admin click-through) */
+      sec.querySelectorAll("[data-cs-img]").forEach(card => {
+        card.addEventListener("click", (e) => {
+          if (e.target.closest(".photo-del") || e.target.closest(".photo-edit")) return;
+          const i = parseInt(card.dataset.csImg.split(":")[1], 10);
+          openPhotoLightbox(imgs, i);
+        });
+      });
+    });
+  }
+
   function renderAll() {
     bindEditables();
     bindStaticText();
-    applyHiddenSections();
     renderHero();
     renderGallery();
     renderAbout();
@@ -518,6 +608,13 @@
     renderJournal();
     renderPhotography();
     renderContact();
+    renderCustomSections();
+    applySectionOrder();
+    applyHiddenSections();
+    /* re-enable inline editing for any freshly-created nodes */
+    if (window.DPAdmin && document.body.classList.contains("admin") && window.DPAdmin.refreshEditable) {
+      window.DPAdmin.refreshEditable();
+    }
   }
 
   /* ===================================================================
@@ -1306,6 +1403,7 @@
     renderGallery, renderStudio, renderExhibitions, renderJournal,
     renderAbout, renderHero, renderPhotography, bindEditables,
     bindStaticText, applyHiddenSections, renderNav,
+    renderCustomSections, applySectionOrder,
     workById, imgFor,
     getPath, setPath, clone, toast, $, $$,
     openDetail, renderDetail, openPurchaseModal,
