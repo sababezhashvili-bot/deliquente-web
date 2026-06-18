@@ -37,7 +37,8 @@ const upload = multer({
 ───────────────────────────────────────────────────────── */
 uploadRouter.post('/', upload.single('image'), async (req, res) => {
   /* 1 ── Auth */
-  const { password, workId } = req.body ?? {};
+  const { password, workId, name } = req.body ?? {};
+  const displayName = (name ?? '').toString().trim();
 
   try {
     const current = await getSiteData();
@@ -68,6 +69,11 @@ uploadRouter.post('/', upload.single('image'), async (req, res) => {
         {
           folder: 'deliquente',
           resource_type: 'image',
+          // Custom name from the admin: shown in Cloudinary library + stored as alt context
+          ...(displayName ? {
+            display_name: displayName,
+            context: { alt: displayName, caption: displayName },
+          } : {}),
           /*
            * Cloudinary eagerly applies these transformations on upload
            * so the CDN caches the optimized version immediately:

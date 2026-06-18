@@ -27,8 +27,9 @@
     });
   }
 
-  /* ── API image upload with progress toast + localStorage fallback ── */
-  async function uploadImage(file, workId) {
+  /* ── API image upload with progress toast + localStorage fallback ──
+       name = optional custom display name / alt sent to Cloudinary + DB. */
+  async function uploadImage(file, workId, name) {
     const pwd = window.DPAdmin?._adminPassword;
     if (!pwd) return readFile(file); /* no API password → base64 fallback */
 
@@ -38,6 +39,7 @@
       fd.append('image', file);
       fd.append('password', pwd);
       if (workId) fd.append('workId', workId);
+      if (name)   fd.append('name', name);
 
       const r = await fetch('/api/upload', { method: 'POST', body: fd });
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
@@ -484,6 +486,7 @@
       <h3>ნამუშევრის რედაქტირება</h3>
       <img id="wPrev" src="${w.img}" style="width:100%;max-height:200px;object-fit:cover;border:2px solid var(--ink);margin-bottom:10px">
       <label>სურათის შეცვლა</label><input type="file" id="wImg" accept="image/*,.tif,.tiff,.heic,.heif,.raw,.dng,.cr2,.nef,.arw,.psd">
+      <label>სურათის სახელი / Alt (SEO + ფაილის სახელი)</label><input id="wAlt" value="${attr(w.alt || "")}" placeholder="მაგ: Bed — Saba Bezhashvili, 2024">
       <label>Title</label><input id="wTitle" value="${attr(w.title)}">
       <label>Year</label><input id="wYear" value="${attr(w.year)}">
       <label>Medium</label><input id="wMed" value="${attr(w.medium)}">
@@ -501,7 +504,7 @@
     let newImg = null;
     $("#wImg").onchange = async (e) => {
       if (e.target.files[0]) {
-        newImg = await uploadImage(e.target.files[0], id);
+        newImg = await uploadImage(e.target.files[0], id, $("#wAlt").value.trim());
         $("#wPrev").src = newImg;
       }
     };
@@ -509,6 +512,7 @@
       w.title = $("#wTitle").value; w.year = $("#wYear").value;
       w.medium = $("#wMed").value; w.dimensions = $("#wDim").value;
       w.desc = $("#wDesc").value;
+      w.alt = $("#wAlt").value.trim();
       w.price = $("#wPrice").value; w.showPrice = $("#wShowPrice").checked;
       if (newImg) w.img = newImg;
       D.save(); D.renderGallery(); D.renderHero();
@@ -530,6 +534,7 @@
       <h3>ახალი ნამუშევარი</h3>
       <label>სურათი (აუცილებელია)</label><input type="file" id="nImg" accept="image/*,.tif,.tiff,.heic,.heif,.raw,.dng,.cr2,.nef,.arw,.psd">
       <img id="nPrev" style="display:none;width:100%;max-height:200px;object-fit:cover;border:2px solid var(--ink);margin-top:10px">
+      <label>სურათის სახელი / Alt (SEO + ფაილის სახელი)</label><input id="nAlt" placeholder="მაგ: Untitled — Saba Bezhashvili, 2026">
       <label>Title</label><input id="nTitle" placeholder="UNTITLED">
       <label>Year</label><input id="nYear" placeholder="2026">
       <label>Medium</label><input id="nMed" placeholder="Mixed media">
@@ -546,7 +551,7 @@
     let img = null;
     $("#nImg").onchange = async (e) => {
       if (e.target.files[0]) {
-        img = await uploadImage(e.target.files[0], null);
+        img = await uploadImage(e.target.files[0], null, $("#nAlt").value.trim());
         const p = $("#nPrev"); p.src = img; p.style.display = "block";
       }
     };
@@ -556,6 +561,7 @@
       D.data.works.push({
         id, img, title: $("#nTitle").value || "UNTITLED", year: $("#nYear").value || "—",
         medium: $("#nMed").value || "Mixed media", size: "md", desc: $("#nDesc").value || "",
+        alt: $("#nAlt").value.trim(),
         price: $("#nPrice").value, showPrice: $("#nShowPrice").checked,
         photos: [], videos: []
       });
@@ -994,7 +1000,9 @@
       <img id="psPrev" style="display:none;width:100%;max-height:180px;object-fit:cover;border:2px solid var(--ink);margin-top:8px">
       <label>ან სურათის URL</label>
       <input id="psUrl" placeholder="https://…">
-      <label>Caption (სურვილისამებრ)</label>
+      <label>სურათის სახელი / Alt (SEO + ფაილის სახელი)</label>
+      <input id="psAlt" placeholder="მაგ: Old Tbilisi street, 2026">
+      <label>Caption (ჩანს ფოტოზე, სურვილისამებრ)</label>
       <input id="psCap" placeholder="Tbilisi, 2026">
       <label>ფასი (სურვილისამებრ)</label>
       <input id="psPrice" placeholder="₾ 200 · €70">
@@ -1010,7 +1018,7 @@
     let src = null;
     $("#psFile").onchange = async (e) => {
       if (e.target.files[0]) {
-        src = await uploadImage(e.target.files[0], null);
+        src = await uploadImage(e.target.files[0], null, $("#psAlt").value.trim());
         const p = $("#psPrev"); p.src = src; p.style.display = "block";
       }
     };
@@ -1022,6 +1030,7 @@
       if (!D.data.photography.photos) D.data.photography.photos = [];
       D.data.photography.photos.push({
         src: finalSrc,
+        alt: $("#psAlt").value.trim(),
         caption: $("#psCap").value.trim(),
         price: $("#psPrice").value.trim(),
         showPrice: $("#psShowPrice").checked
@@ -1042,7 +1051,9 @@
       <img id="epPrev" src="${esc(ph.src)}" style="width:100%;max-height:160px;object-fit:cover;border:2px solid var(--ink);margin-bottom:10px">
       <label>სურათის შეცვლა (.jpg .png .tif .heic .raw …)</label>
       <input type="file" id="epFile" accept="image/*,.tif,.tiff,.heic,.heif,.raw,.dng,.cr2,.nef,.arw,.psd">
-      <label>Caption</label>
+      <label>სურათის სახელი / Alt (SEO)</label>
+      <input id="epAlt" value="${attr(ph.alt || "")}" placeholder="მაგ: Old Tbilisi street, 2026">
+      <label>Caption (ჩანს ფოტოზე)</label>
       <input id="epCap" value="${attr(ph.caption || "")}">
       <label>ფასი (სურვილისამებრ)</label>
       <input id="epPrice" value="${attr(ph.price || "")}" placeholder="₾ 200 · €70">
@@ -1057,11 +1068,12 @@
     let newSrc = null;
     $("#epFile").onchange = async (e) => {
       if (e.target.files[0]) {
-        newSrc = await uploadImage(e.target.files[0], null);
+        newSrc = await uploadImage(e.target.files[0], null, $("#epAlt").value.trim());
         $("#epPrev").src = newSrc;
       }
     };
     $("#mSave").onclick = () => {
+      ph.alt = $("#epAlt").value.trim();
       ph.caption = $("#epCap").value.trim();
       ph.price = $("#epPrice").value.trim();
       ph.showPrice = $("#epShowPrice").checked;
@@ -1258,6 +1270,55 @@
           ${f("contact.formNote","Form label")}
         </div>
 
+        <div class="tp-section">
+          <div class="tp-section-title">08 — Navigation menu</div>
+          <div class="tp-field"><label>მენიუს ბმულები (სახელი + სად გადახტება)</label></div>
+          <div id="tpNavRows"></div>
+          <button type="button" class="admin-add" id="tpNavAdd" style="display:block;margin-top:6px">+ მენიუს ბმული</button>
+          ${f("ui.menuLabel","Menu button label (mobile)")}
+        </div>
+
+        <div class="tp-section">
+          <div class="tp-section-title">09 — Section numbers / eyebrows</div>
+          ${f("ui.sectionNums.works","Works — eyebrow")}
+          ${f("ui.sectionNums.about","About — eyebrow")}
+          ${f("ui.sectionNums.studio","Studio — eyebrow")}
+          ${f("ui.sectionNums.exhibitions","Exhibitions — eyebrow")}
+          ${f("ui.sectionNums.journal","Journal — eyebrow")}
+          ${f("ui.sectionNums.photography","Photography — eyebrow")}
+          ${f("ui.sectionNums.contact","Contact — eyebrow")}
+          ${f("ui.scrollCue","Hero scroll cue")}
+          ${f("ui.dragHint","Studio drag hint")}
+        </div>
+
+        <div class="tp-section">
+          <div class="tp-section-title">10 — Work detail page</div>
+          ${f("ui.detail.eyebrow","Top bar eyebrow")}
+          ${f("ui.detail.back","Back button")}
+          ${f("ui.detail.specYear","Spec label — Year")}
+          ${f("ui.detail.specMedium","Spec label — Medium")}
+          ${f("ui.detail.specDimensions","Spec label — Dimensions")}
+          ${f("ui.detail.photosTitle","Detail photos heading")}
+          ${f("ui.detail.videoTitle","Video heading")}
+          ${f("ui.detail.inquire","Inquire button")}
+          ${f("ui.detail.allWorks","All works button")}
+          ${f("ui.detail.buy","Buy button")}
+        </div>
+
+        <div class="tp-section">
+          <div class="tp-section-title">11 — Contact form</div>
+          ${f("ui.form.nameLabel","Name label")}
+          ${f("ui.form.namePlaceholder","Name placeholder")}
+          ${f("ui.form.emailLabel","Email label")}
+          ${f("ui.form.emailPlaceholder","Email placeholder")}
+          ${f("ui.form.typeLabel","Type label")}
+          ${f("ui.form.typeOptions","Type dropdown options (comma separated)")}
+          ${f("ui.form.msgLabel","Message label")}
+          ${f("ui.form.msgPlaceholder","Message placeholder")}
+          ${f("ui.form.submit","Submit button")}
+          ${f("ui.form.okMsg","Success message")}
+        </div>
+
       </div>
       <div class="modal-actions" style="margin-top:14px;position:sticky;bottom:0;background:var(--paper);padding-top:8px">
         <button class="cancel" id="mCancel">Cancel</button>
@@ -1267,11 +1328,46 @@
     /* widen the modal for text fields */
     document.getElementById("modalBox").classList.add("modal-wide");
 
+    /* ---- Nav-links repeater (label + target) ---- */
+    const SECTION_IDS = ["works","about","studio","exhibitions","photography","journal","contact"];
+    const navRows = document.getElementById("tpNavRows");
+    const navRowHTML = (label, target) => `
+      <div class="tp-nav-row" style="display:flex;gap:6px;margin-bottom:6px;align-items:center">
+        <input class="tp-nav-label" value="${attr(label || "")}" placeholder="Label" style="flex:1">
+        <select class="tp-nav-target" style="flex:1">
+          ${SECTION_IDS.map(s => `<option value="${s}" ${s === target ? "selected" : ""}>${s}</option>`).join("")}
+        </select>
+        <button type="button" class="tp-nav-del danger" title="წაშლა" style="flex:0 0 auto;padding:6px 9px">✕</button>
+      </div>`;
+    const wireDelButtons = () => navRows.querySelectorAll(".tp-nav-del").forEach(b => {
+      b.onclick = () => b.closest(".tp-nav-row").remove();
+    });
+    if (navRows) {
+      const links = (D.data.ui && D.data.ui.nav && D.data.ui.nav.links) || [];
+      navRows.innerHTML = links.map(l => navRowHTML(l.label, l.target)).join("");
+      wireDelButtons();
+      const addBtn = document.getElementById("tpNavAdd");
+      if (addBtn) addBtn.onclick = () => {
+        navRows.insertAdjacentHTML("beforeend", navRowHTML("", SECTION_IDS[0]));
+        wireDelButtons();
+      };
+    }
+
     $("#mCancel").onclick = closeModal;
     $("#mSave").onclick = () => {
       document.getElementById("modalBox").querySelectorAll(".tp[data-path]").forEach(el => {
         D.setPath(el.dataset.path, el.value);
       });
+      /* collect nav links */
+      if (navRows) {
+        const links = [...navRows.querySelectorAll(".tp-nav-row")].map(r => ({
+          label:  r.querySelector(".tp-nav-label").value.trim(),
+          target: r.querySelector(".tp-nav-target").value
+        })).filter(l => l.label);
+        if (!D.data.ui) D.data.ui = {};
+        if (!D.data.ui.nav) D.data.ui.nav = {};
+        D.data.ui.nav.links = links;
+      }
       D.save(); D.rerender(); D.bindStaticText(); closeModal();
       D.toast("✎ ყველა ტექსტი შენახულია");
     };

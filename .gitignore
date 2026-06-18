@@ -22,3 +22,5 @@ dist/
 
 # Local images — uploaded to Cloudinary for production
 images/
+
+.vercel

@@ -42,15 +42,9 @@
   </a>
   <div class="nav-links" id="navLinks">
     <button class="nav-close" id="navClose" aria-label="დახურვა">✕</button>
-    <a href="#works">Works</a>
-    <a href="#about">About</a>
-    <a href="#studio">Studio</a>
-    <a href="#exhibitions">Exhibitions</a>
-    <a href="#photography">Photography</a>
-    <a href="#journal">Journal</a>
-    <a href="#contact">Contact</a>
+    <!-- nav links injected by renderNav() from DATA.ui.nav.links -->
   </div>
-  <button class="menu-btn" id="menuBtn">MENU</button>
+  <button class="menu-btn" id="menuBtn"><span id="menuBtnLabel">MENU</span></button>
 </nav>
 
 <main id="top">
@@ -78,7 +72,7 @@
         <span class="tag" id="heroTag">—</span>
       </div>
     </div>
-    <div class="scroll-cue"><span class="ln"></span> SCROLL</div>
+    <div class="scroll-cue"><span class="ln"></span> <span data-edit="ui.scrollCue">SCROLL</span></div>
   </header>
 
   <!-- ===== WORKS ===== -->
@@ -86,7 +80,7 @@
     <div class="wrap">
       <div class="sec-head">
         <div>
-          <span class="sec-num">01 — PORTFOLIO</span>
+          <span class="sec-num" data-edit="ui.sectionNums.works">01 — PORTFOLIO</span>
           <h2 class="reveal" id="worksHeading">Featured<br>Works</h2>
           <svg class="scribble-line" viewBox="0 0 280 18" preserveAspectRatio="none"><path d="M2 12 C60 2 90 16 140 8 S230 2 278 10" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"/></svg>
         </div>
@@ -106,7 +100,7 @@
   <section class="section" id="about">
     <div class="wrap">
       <div class="sec-head">
-        <div><span class="sec-num">02 — THE ARTIST</span>
+        <div><span class="sec-num" data-edit="ui.sectionNums.about">02 — THE ARTIST</span>
           <h2 class="reveal" data-edit="about.heading">About</h2></div>
       </div>
       <div class="about-grid">
@@ -130,13 +124,13 @@
   <section class="section" id="studio">
     <div class="wrap">
       <div class="sec-head">
-        <div><span class="sec-num">03 — BEHIND THE WORK</span>
+        <div><span class="sec-num" data-edit="ui.sectionNums.studio">03 — BEHIND THE WORK</span>
           <h2 class="reveal" data-edit="studio.heading">Studio</h2></div>
       </div>
       <p class="studio-intro reveal" data-edit="studio.intro">—</p>
     </div>
     <div class="wrap"><div class="hscroll" id="hscroll"></div>
-      <div class="hscroll-hint">← DRAG / SCROLL →</div>
+      <div class="hscroll-hint" data-edit="ui.dragHint">← DRAG / SCROLL →</div>
     </div>
   </section>
 
@@ -144,7 +138,7 @@
   <section class="section" id="exhibitions">
     <div class="wrap">
       <div class="sec-head">
-        <div><span class="sec-num">04 — CV</span>
+        <div><span class="sec-num" data-edit="ui.sectionNums.exhibitions">04 — CV</span>
           <h2 class="reveal" data-edit="exhibitions.heading">Exhibitions<br>& Awards</h2></div>
       </div>
       <div class="timeline" id="timeline"></div>
@@ -156,7 +150,7 @@
   <section class="section" id="journal">
     <div class="wrap">
       <div class="sec-head">
-        <div><span class="sec-num">05 — NOTES</span>
+        <div><span class="sec-num" data-edit="ui.sectionNums.journal">05 — NOTES</span>
           <h2 class="reveal" data-edit="journal.heading">Journal</h2></div>
         <p class="hand" data-edit="journal.intro" style="max-width:30ch">—</p>
       </div>
@@ -170,7 +164,7 @@
     <div class="wrap">
       <div class="sec-head">
         <div>
-          <span class="sec-num">06 — PHOTOGRAPHY</span>
+          <span class="sec-num" data-edit="ui.sectionNums.photography">06 — PHOTOGRAPHY</span>
           <h2 class="reveal" data-edit="photography.heading">Photography</h2>
           <svg class="scribble-line" viewBox="0 0 280 18" preserveAspectRatio="none"><path d="M2 12 C60 2 90 16 140 8 S230 2 278 10" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"/></svg>
         </div>
@@ -185,7 +179,7 @@
   <section class="section" id="contact">
     <div class="wrap contact-grid">
       <div>
-        <span class="sec-num" style="color:var(--paper)">07 — CONTACT</span>
+        <span class="sec-num" style="color:var(--paper)" data-edit="ui.sectionNums.contact">07 — CONTACT</span>
         <h2 data-edit="contact.heading">—</h2>
         <p class="contact-intro" data-edit="contact.intro">—</p>
         <div class="contact-links">
@@ -196,11 +190,11 @@
       </div>
       <div class="cform">
         <div class="ftitle" data-edit="contact.formNote">Commission request</div>
-        <label>Name</label><input id="fName" type="text" placeholder="Your name">
-        <label>Email</label><input id="fEmail" type="email" placeholder="you@email.com">
-        <label>Type</label>
-        <select id="fType"><option>Commission</option><option>Exhibition</option><option>Studio visit</option><option>Other</option></select>
-        <label>Message</label><textarea id="fMsg" placeholder="Tell me about the project…"></textarea>
+        <label id="fNameLabel">Name</label><input id="fName" type="text" placeholder="Your name">
+        <label id="fEmailLabel">Email</label><input id="fEmail" type="email" placeholder="you@email.com">
+        <label id="fTypeLabel">Type</label>
+        <select id="fType"></select>
+        <label id="fMsgLabel">Message</label><textarea id="fMsg" placeholder="Tell me about the project…"></textarea>
         <button class="submit" id="fSubmit">Send request</button>
         <div class="ok" id="fOk">✓ Thanks — your message is ready to send.</div>
       </div>
@@ -219,7 +213,7 @@
 <div class="detail" id="detail">
   <div class="detail-bar">
     <button class="detail-back" id="detailBack">← BACK TO WORKS</button>
-    <span class="eyebrow">DELIQUENTE PENSAMIENTO</span>
+    <span class="eyebrow" id="detailEyebrow">DELIQUENTE PENSAMIENTO</span>
   </div>
   <div class="detail-inner" id="detailInner"></div>
 </div>

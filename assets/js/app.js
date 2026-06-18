@@ -144,6 +144,57 @@
     }
     const an1 = el("aboutNote1"); if (an1 && ab.studioNote1 !== undefined) an1.textContent = ab.studioNote1;
     const an2 = el("aboutNote2"); if (an2 && ab.studioNote2 !== undefined) an2.textContent = ab.studioNote2;
+
+    /* ---- UI microcopy (nav, form, detail bar) ---- */
+    const ui = DATA.ui || {};
+    const setText = (id, val) => { const n = el(id); if (n && val !== undefined && val !== null) n.textContent = val; };
+    const setAttr = (id, attr, val) => { const n = el(id); if (n && val !== undefined && val !== null) n.setAttribute(attr, val); };
+
+    setText("menuBtnLabel", ui.menuLabel);
+    setText("detailEyebrow", ui.detail && ui.detail.eyebrow);
+    setText("detailBack", ui.detail && ui.detail.back);
+
+    /* contact form labels / placeholders / options / messages */
+    const fm = ui.form || {};
+    setText("fNameLabel",  fm.nameLabel);
+    setText("fEmailLabel", fm.emailLabel);
+    setText("fTypeLabel",  fm.typeLabel);
+    setText("fMsgLabel",   fm.msgLabel);
+    setText("fSubmit",     fm.submit);
+    setText("fOk",         fm.okMsg);
+    setAttr("fName", "placeholder", fm.namePlaceholder);
+    setAttr("fEmail","placeholder", fm.emailPlaceholder);
+    setAttr("fMsg",  "placeholder", fm.msgPlaceholder);
+    /* type dropdown options (comma-separated string) */
+    const sel = el("fType");
+    if (sel && fm.typeOptions !== undefined) {
+      const prev = sel.value;
+      const opts = String(fm.typeOptions).split(",").map(s => s.trim()).filter(Boolean);
+      sel.innerHTML = opts.map(o => `<option>${escapeHTML(o)}</option>`).join("");
+      if (opts.includes(prev)) sel.value = prev;
+    }
+
+    renderNav();
+  }
+
+  /* Build the nav menu links from DATA.ui.nav.links (label + target). */
+  function renderNav() {
+    const wrap = document.getElementById("navLinks");
+    if (!wrap) return;
+    const links = (DATA.ui && DATA.ui.nav && DATA.ui.nav.links) || [];
+    /* remove previously-injected links (keep the close button) */
+    wrap.querySelectorAll("a[data-nav-link]").forEach(a => a.remove());
+    const closeMenu = () => wrap.classList.remove("open");
+    links.forEach(lk => {
+      const a = document.createElement("a");
+      a.href = "#" + (lk.target || "");
+      a.textContent = lk.label || "";
+      a.setAttribute("data-nav-link", lk.target || "");
+      a.addEventListener("click", closeMenu);
+      wrap.appendChild(a);
+    });
+    /* refresh hidden-section visibility (link display depends on it) */
+    applyHiddenSections();
   }
 
   /* Show/hide sections (and their nav links) based on meta.hiddenSections */
@@ -198,8 +249,22 @@
     /* update ticker with current titles (doubled for seamless loop) */
     const ticker = $("#gallery").parentElement && document.querySelector(".gallery-ticker-inner");
     if (ticker) {
-      const titles = DATA.works.map(w => `<span>${escapeHTML(w.title)}</span>`).join("");
+      const titles = DATA.works.map(w =>
+        `<span class="ticker-item" data-ticker-id="${escapeHTML(w.id)}" role="link" tabindex="0">${escapeHTML(w.title)}</span>`
+      ).join("");
       ticker.innerHTML = titles + titles; /* duplicate for seamless */
+      if (!ticker._wired) {
+        ticker._wired = true;
+        const goto = (el) => { const id = el && el.dataset.tickerId; if (id) location.hash = "work/" + id; };
+        ticker.addEventListener("click", (e) => {
+          const it = e.target.closest(".ticker-item"); if (it) goto(it);
+        });
+        ticker.addEventListener("keydown", (e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            const it = e.target.closest(".ticker-item"); if (it) { e.preventDefault(); goto(it); }
+          }
+        });
+      }
     }
     DATA.works.forEach((w, i) => {
       const c = document.createElement("article");
@@ -215,7 +280,7 @@
             <button data-tool="del" title="წაშლა">✕</button>
           </div>
           <span class="corner">${String(i + 1).padStart(2, "0")}</span>
-          <img src="${w.img}" alt="${escapeHTML(w.title)}" loading="lazy">
+          <img src="${w.img}" alt="${escapeHTML(w.alt || w.title)}" title="${escapeHTML(w.alt || w.title)}" loading="lazy">
           <div class="view-cue">↗</div>
         </div>
         <div class="cap">
@@ -279,6 +344,7 @@
       });
       t.appendChild(r);
     });
+    enableReorder([...t.querySelectorAll(".tl-row")], DATA.exhibitions.items, renderExhibitions);
     observeReveal();
   }
 
@@ -302,6 +368,7 @@
       });
       g.appendChild(c);
     });
+    enableReorder([...g.querySelectorAll(".jcard")], DATA.journal.posts, renderJournal);
     observeReveal();
   }
 
@@ -416,7 +483,7 @@
       c.innerHTML = `
         <button class="photo-del admin-only" data-del-photo="${i}" title="წაშლა">✕</button>
         <button class="photo-edit admin-only" data-edit-photo="${i}" title="რედაქტირება">✎</button>
-        <img src="${escapeHTML(ph.src)}" alt="${escapeHTML(ph.caption || "")}" loading="lazy">
+        <img src="${escapeHTML(ph.src)}" alt="${escapeHTML(ph.alt || ph.caption || "")}" title="${escapeHTML(ph.alt || ph.caption || "")}" loading="lazy">
         ${(ph.caption || (ph.showPrice && ph.price)) ? `<div class="photo-cap">
           ${ph.caption ? `<span class="photo-cap-text">${escapeHTML(ph.caption)}</span>` : ""}
           ${(ph.showPrice && ph.price) ? `<span class="price-tag">${escapeHTML(ph.price)}</span>` : ""}
@@ -428,6 +495,7 @@
       });
       grid.appendChild(c);
     });
+    enableReorder([...grid.querySelectorAll(".photo-card")], photos, renderPhotography);
     observeReveal();
   }
 
@@ -463,6 +531,7 @@
     const isAdmin = document.body.classList.contains("admin");
     const photos  = (w.photos  || []);
     const videos  = (w.videos  || []);
+    const ud = (DATA.ui && DATA.ui.detail) || {};
 
     /* ── photos section (only if photos exist OR admin mode) ── */
     const photosHTML = photos.length
@@ -487,9 +556,9 @@
 
     /* ── specs rows ── */
     const specRows = [
-      ["Year",       w.year,       "year"],
-      ["Medium",     w.medium,     "medium"],
-      ["Dimensions", w.dimensions, "dimensions"],
+      [ud.specYear       || "Year",       w.year,       "year"],
+      [ud.specMedium     || "Medium",     w.medium,     "medium"],
+      [ud.specDimensions || "Dimensions", w.dimensions, "dimensions"],
     ].filter(([, val]) => isAdmin || val)
      .map(([label, val, field]) =>
       `<tr>
@@ -502,7 +571,7 @@
 
         <!-- LEFT: main artwork image -->
         <div class="detail-hero reveal in">
-          <img src="${w.img}" alt="${escapeHTML(w.title)}">
+          <img src="${w.img}" alt="${escapeHTML(w.alt || w.title)}" title="${escapeHTML(w.alt || w.title)}">
         </div>
 
         <!-- RIGHT: meta panel -->
@@ -521,9 +590,9 @@
             : ""}
 
           <div class="detail-cta">
-            ${w.price ? `<button class="btn-buy" data-buy-work="${w.id}">შეძენა / Buy</button>` : ""}
-            <a class="btn solid" href="#contact" id="dpInquire">Inquire</a>
-            <a class="btn" href="#works">← All works</a>
+            ${w.price ? `<button class="btn-buy" data-buy-work="${w.id}">${escapeHTML(ud.buy || "შეძენა / Buy")}</button>` : ""}
+            <a class="btn solid" href="#contact" id="dpInquire">${escapeHTML(ud.inquire || "Inquire")}</a>
+            <a class="btn" href="#works">${escapeHTML(ud.allWorks || "← All works")}</a>
           </div>
 
           <!-- Admin-only quick tools -->
@@ -537,14 +606,14 @@
 
       ${(photosHTML || isAdmin) ? `
       <div class="detail-sub-section">
-        <h2 class="detail-sub">Detail Photos</h2>
+        <h2 class="detail-sub">${escapeHTML(ud.photosTitle || "Detail Photos")}</h2>
         <div class="detail-photo-grid" id="dPhotos">${photosHTML || '<p class="empty-hint admin-only">+ დაამატე ფოტოები ↑</p>'}</div>
         <button class="admin-add admin-only" data-add-photo="${w.id}">+ ფოტოს ატვირთვა</button>
       </div>` : ""}
 
       ${(videosHTML || isAdmin) ? `
       <div class="detail-sub-section">
-        <h2 class="detail-sub">Video</h2>
+        <h2 class="detail-sub">${escapeHTML(ud.videoTitle || "Video")}</h2>
         <div class="detail-video-grid" id="dVideos">${videosHTML || '<p class="empty-hint admin-only">+ დაამატე ვიდეო ↑</p>'}</div>
         <button class="admin-add admin-only" data-add-video="${w.id}">+ ვიდეოს დამატება</button>
       </div>` : ""}
@@ -654,6 +723,33 @@
       }, { threshold: 0.12, rootMargin: "0px 0px -8% 0px" });
     }
     $$(".reveal:not(.in)").forEach((n) => io.observe(n));
+  }
+
+  /* Generic admin drag-reorder for a list of sibling cards backed by an array.
+     els: DOM nodes in current order · arr: the backing data array · rerender: fn to redraw */
+  function enableReorder(els, arr, rerender) {
+    if (!document.body.classList.contains("admin")) return;
+    let from = null;
+    els.forEach((el, i) => {
+      el.setAttribute("draggable", "true");
+      el.classList.add("reorderable");
+      el.addEventListener("dragstart", (e) => {
+        from = i; el.classList.add("drag-active");
+        e.dataTransfer.effectAllowed = "move";
+      });
+      el.addEventListener("dragend", () => {
+        from = null;
+        els.forEach(x => x.classList.remove("drag-active", "drop-target"));
+      });
+      el.addEventListener("dragover", (e) => { e.preventDefault(); el.classList.add("drop-target"); });
+      el.addEventListener("dragleave", () => el.classList.remove("drop-target"));
+      el.addEventListener("drop", (e) => {
+        e.preventDefault(); el.classList.remove("drop-target");
+        if (from === null || from === i) return;
+        const [m] = arr.splice(from, 1); arr.splice(i, 0, m);
+        saveStore(); rerender();
+      });
+    });
   }
 
   function enableDragScroll(elm) {
@@ -1209,7 +1305,7 @@
     rerender: renderAll,
     renderGallery, renderStudio, renderExhibitions, renderJournal,
     renderAbout, renderHero, renderPhotography, bindEditables,
-    bindStaticText, applyHiddenSections,
+    bindStaticText, applyHiddenSections, renderNav,
     workById, imgFor,
     getPath, setPath, clone, toast, $, $$,
     openDetail, renderDetail, openPurchaseModal,

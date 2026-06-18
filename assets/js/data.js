@@ -18,6 +18,63 @@ const DEFAULT_DATA = {
     adminPassword: "saba2026"
   },
 
+  /* ---- UI MICROCOPY & NAV ------------------------------------------
+     ყველა "ჩაკეტილი" ტექსტი ახლა აქედან იმართება — ნავიგაცია, სექციების
+     ნომრები, ფორმის წარწერები, დეტალის გვერდის ღილაკები და სხვ.
+     რედაქტირდება ადმინ-პანელის "✎ ტექსტები" მენიუდან ან პირდაპირ გვერდზე.
+     ----------------------------------------------------------------- */
+  ui: {
+    nav: {
+      /* label = ჩანს მენიუში · target = რომელ სექციას გადახტება (#id) */
+      links: [
+        { label: "Works",       target: "works" },
+        { label: "About",       target: "about" },
+        { label: "Studio",      target: "studio" },
+        { label: "Exhibitions", target: "exhibitions" },
+        { label: "Photography", target: "photography" },
+        { label: "Journal",     target: "journal" },
+        { label: "Contact",     target: "contact" }
+      ]
+    },
+    sectionNums: {
+      works:       "01 — PORTFOLIO",
+      about:       "02 — THE ARTIST",
+      studio:      "03 — BEHIND THE WORK",
+      exhibitions: "04 — CV",
+      journal:     "05 — NOTES",
+      photography: "06 — PHOTOGRAPHY",
+      contact:     "07 — CONTACT"
+    },
+    scrollCue: "SCROLL",
+    dragHint:  "← DRAG / SCROLL →",
+    menuLabel: "MENU",
+    detail: {
+      back:        "← BACK TO WORKS",
+      eyebrow:     "DELIQUENTE PENSAMIENTO",
+      photosTitle: "Detail Photos",
+      videoTitle:  "Video",
+      specYear:       "Year",
+      specMedium:     "Medium",
+      specDimensions: "Dimensions",
+      inquire:  "Inquire",
+      allWorks: "← All works",
+      buy:      "შეძენა / Buy"
+    },
+    form: {
+      nameLabel:       "Name",
+      namePlaceholder: "Your name",
+      emailLabel:       "Email",
+      emailPlaceholder: "you@email.com",
+      typeLabel:   "Type",
+      /* მძიმით გამოყოფილი ვარიანტები ჩამოსაშლელისთვის */
+      typeOptions: "Commission, Exhibition, Studio visit, Other",
+      msgLabel:       "Message",
+      msgPlaceholder: "Tell me about the project…",
+      submit: "Send request",
+      okMsg:  "✓ Thanks — your message is ready to send."
+    }
+  },
+
   worksSection: {
     heading: "Featured\nWorks",
     tagline: "A living archive — click any piece to step inside it."

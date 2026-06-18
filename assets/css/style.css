@@ -102,6 +102,16 @@ body::after{
   .nav-links.open{transform:none;visibility:visible}
   .nav-links a{font-size:1.5rem;color:var(--paper);letter-spacing:.12em}
   .nav .menu-btn{display:block}
+  /* When scrolled, .nav gains backdrop-filter — which creates a containing block
+     that traps the fixed full-screen menu inside the 56px bar. Neutralise it
+     while the menu is open so the overlay fills the viewport. */
+  .nav:has(.nav-links.open){
+    backdrop-filter:none!important;-webkit-backdrop-filter:none!important;
+    background:none!important;box-shadow:none!important;
+  }
+  /* admin: keep the open menu + its close button below the 54px admin bar */
+  body.admin .nav-links.open{padding-top:54px}
+  body.admin .nav-close{top:64px}
 }
 
 /* Mobile nav close button */
@@ -389,8 +399,11 @@ body::after{
 body.admin .admin-fab{background:var(--red);box-shadow:4px 4px 0 var(--ink)}
 
 /* admin bar */
-.admin-bar{position:fixed;top:0;left:0;right:0;z-index:350;background:var(--ink);color:var(--paper);display:none;align-items:center;gap:14px;padding:10px var(--gut);flex-wrap:wrap;border-bottom:3px solid var(--red)}
+/* single scrollable row so the bar height stays ~54px and never overlaps the nav below it */
+.admin-bar{position:fixed;top:0;left:0;right:0;z-index:350;height:54px;box-sizing:border-box;background:var(--ink);color:var(--paper);display:none;align-items:center;gap:14px;padding:8px var(--gut);flex-wrap:nowrap;overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;border-bottom:3px solid var(--red)}
 body.admin .admin-bar{display:flex}
+.admin-bar button{flex-shrink:0;white-space:nowrap}
+.admin-bar .tag{flex-shrink:0;white-space:nowrap}
 body.admin{padding-top:54px}
 .admin-bar .tag{font-family:var(--f-mono);font-size:.66rem;letter-spacing:.2em;color:var(--yellow)}
 .admin-bar button{font-family:var(--f-mono);font-size:.66rem;letter-spacing:.12em;text-transform:uppercase;border:1.5px solid var(--paper);padding:7px 12px;transition:background .2s,color .2s}
@@ -398,7 +411,7 @@ body.admin{padding-top:54px}
 .admin-bar button.danger{border-color:var(--red);color:var(--red)}
 .admin-bar button.danger:hover{background:var(--red);color:var(--paper)}
 .admin-bar .spacer{flex:1}
-.admin-bar .hint{font-family:var(--f-hand);font-weight:600;color:#bdb7a8;font-size:.9rem}
+.admin-bar .hint{font-family:var(--f-hand);font-weight:600;color:#bdb7a8;font-size:.9rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;flex-shrink:1}
 
 /* editable affordances */
 body.admin [data-edit]{outline:1.5px dashed rgba(230,57,70,.6);outline-offset:3px;cursor:text;transition:outline-color .2s;border-radius:2px}
@@ -1124,6 +1137,14 @@ body.admin .photo-edit{display:flex}
 .gallery-ticker-inner span::before{content:"·  ";color:var(--red)}
 @keyframes ticker{from{transform:translateX(0)}to{transform:translateX(-50%)}}
 .gallery-ticker-inner:hover{animation-play-state:paused}
+/* clickable ticker names → jump to that work */
+.gallery-ticker-inner .ticker-item{cursor:pointer;transition:opacity .2s,color .2s}
+.gallery-ticker-inner .ticker-item:hover,
+.gallery-ticker-inner .ticker-item:focus-visible{opacity:1;color:var(--red);outline:none}
+/* admin drag-reorder affordance for photography / exhibitions / journal */
+body.admin .reorderable{cursor:grab}
+body.admin .reorderable.drag-active{opacity:.4}
+body.admin .reorderable.drop-target{outline:3px solid var(--blue);outline-offset:3px}
 
 /* ── ABOUT notes: subtler dashed tags ── */
 .about-notes span{
