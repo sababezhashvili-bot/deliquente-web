@@ -470,7 +470,7 @@
 
   function sizeModal(id) {
     const w = D.workById(id);
-    const sizes = ["sm", "md", "lg", "wide", "tall"];
+    const sizes = ["sm", "md", "lg", "wide", "tall", "xl", "full-wide", "full-tall", "full"];
     openModal(`
       <h3>ზომა — ${w.title}</h3>
       <div class="size-pills">
@@ -498,11 +498,7 @@
       <label>Medium</label><input id="wMed" value="${attr(w.medium)}">
       <label>Dimensions / ზომები (სურვილისამებრ)</label><input id="wDim" value="${attr(w.dimensions || "")}" placeholder="120×100cm">
       <label>Description</label><textarea id="wDesc">${esc(w.desc)}</textarea>
-      <label>ფასი (სურვილისამებრ)</label><input id="wPrice" value="${attr(w.price || "")}" placeholder="₾ 500 · €180">
-      <div class="toggle-row">
-        <span class="toggle-label">ფასი საჯაროდ ჩვენება</span>
-        <input type="checkbox" id="wShowPrice" ${w.showPrice ? "checked" : ""}>
-      </div>
+      ${priceFields("w", w)}
       <div class="modal-actions">
         <button class="cancel" id="mCancel">Cancel</button>
         <button class="save" id="mSave">Save</button>
@@ -519,7 +515,7 @@
       w.medium = $("#wMed").value; w.dimensions = $("#wDim").value;
       w.desc = $("#wDesc").value;
       w.alt = $("#wAlt").value.trim();
-      w.price = $("#wPrice").value; w.showPrice = $("#wShowPrice").checked;
+      readPrice("w", w);
       if (newImg) w.img = newImg;
       D.save(); D.renderGallery(); D.renderHero();
       if (document.getElementById("detail").classList.contains("open")) D.renderDetail(id);
@@ -535,6 +531,35 @@
     D.data.works.splice(i, 1); D.save(); D.renderGallery();
   }
 
+  /* ── reusable price fields (amount + currency + public toggle) ── */
+  function priceFields(prefix, obj) {
+    obj = obj || {};
+    const amt = (obj.priceAmount != null && obj.priceAmount !== "") ? obj.priceAmount : "";
+    const cur = obj.priceCurrency || "GEL";
+    return `
+      <label>ფასი (სურვილისამებრ)</label>
+      <div style="display:flex;gap:8px">
+        <input id="${prefix}Amount" type="number" min="0" step="1" value="${attr(String(amt))}" placeholder="500" style="flex:1">
+        <select id="${prefix}Curr" style="width:96px">
+          <option value="GEL" ${cur === "GEL" ? "selected" : ""}>₾ GEL</option>
+          <option value="USD" ${cur === "USD" ? "selected" : ""}>$ USD</option>
+          <option value="EUR" ${cur === "EUR" ? "selected" : ""}>€ EUR</option>
+        </select>
+      </div>
+      <div class="modal-note">შეიყვანე თანხა და აირჩიე ვალუტა — მნახველი საიტზე თვითონ გადართავს ₾/$/€-ზე.</div>
+      <div class="toggle-row">
+        <span class="toggle-label">ფასი საჯაროდ ჩვენება</span>
+        <input type="checkbox" id="${prefix}ShowPrice" ${obj.showPrice ? "checked" : ""}>
+      </div>`;
+  }
+  function readPrice(prefix, obj) {
+    const v = $("#" + prefix + "Amount").value.trim();
+    obj.priceAmount   = v === "" ? "" : Number(v);
+    obj.priceCurrency = $("#" + prefix + "Curr").value;
+    obj.showPrice     = $("#" + prefix + "ShowPrice").checked;
+    delete obj.price; /* drop legacy free-text price once migrated */
+  }
+
   function addWork() {
     openModal(`
       <h3>ახალი ნამუშევარი</h3>
@@ -544,12 +569,9 @@
       <label>Title</label><input id="nTitle" placeholder="UNTITLED">
       <label>Year</label><input id="nYear" placeholder="2026">
       <label>Medium</label><input id="nMed" placeholder="Mixed media">
+      <label>Dimensions / ზომები (სურვილისამებრ)</label><input id="nDim" placeholder="120×100cm">
       <label>Description</label><textarea id="nDesc"></textarea>
-      <label>ფასი (სურვილისამებრ)</label><input id="nPrice" placeholder="₾ 500 · €180">
-      <div class="toggle-row">
-        <span class="toggle-label">ფასი საჯაროდ ჩვენება</span>
-        <input type="checkbox" id="nShowPrice">
-      </div>
+      ${priceFields("n")}
       <div class="modal-actions">
         <button class="cancel" id="mCancel">Cancel</button>
         <button class="save" id="mSave">Add</button>
@@ -564,13 +586,14 @@
     $("#mSave").onclick = () => {
       if (!img) { D.toast("ატვირთე სურათი"); return; }
       const id = "w" + Date.now().toString(36);
-      D.data.works.push({
+      const rec = {
         id, img, title: $("#nTitle").value || "UNTITLED", year: $("#nYear").value || "—",
         medium: $("#nMed").value || "Mixed media", size: "md", desc: $("#nDesc").value || "",
-        alt: $("#nAlt").value.trim(),
-        price: $("#nPrice").value, showPrice: $("#nShowPrice").checked,
+        dimensions: $("#nDim").value, alt: $("#nAlt").value.trim(),
         photos: [], videos: []
-      });
+      };
+      readPrice("n", rec);
+      D.data.works.push(rec);
       D.save(); D.renderGallery(); D.renderStudio(); closeModal(); D.toast("ნამუშევარი დაემატა");
     };
     $("#mCancel").onclick = closeModal;
@@ -1447,7 +1470,14 @@
         </div>
 
         <div class="tp-section">
-          <div class="tp-section-title">12 — Security</div>
+          <div class="tp-section-title">12 — Pricing / Currency</div>
+          ${f("meta.fx.USD","1 USD = რამდენი ₾ (მაგ: 2.65)")}
+          ${f("meta.fx.EUR","1 EUR = რამდენი ₾ (მაგ: 2.85)")}
+          <div class="modal-note">ფასს თანხა+ვალუტით ნამუშევარზე აყენებ; საიტი ამ კურსებით თვითონ გადაითვლის ₾/$/€-ში.</div>
+        </div>
+
+        <div class="tp-section">
+          <div class="tp-section-title">13 — Security</div>
           ${f("meta.adminPassword","Admin password (შესვლის პაროლი)")}
           <div class="modal-note">⚠ პაროლის შეცვლის შემდეგ შემდეგ ჯერზე ახალი პაროლით შედი.</div>
         </div>
@@ -1601,7 +1631,7 @@
   }
 
   /* ── generic media controls reused by photography / custom images / videos ── */
-  const MEDIA_SIZES = ["sm","md","lg","wide","tall","xl","full"];
+  const MEDIA_SIZES = ["sm","md","lg","wide","tall","xl","full-wide","full-tall","full"];
   function sizePickModal(title, current, apply) {
     openModal(`
       <h3>ზომა — ${esc(title || "")}</h3>

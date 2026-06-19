@@ -221,6 +221,20 @@ body::after{
   .gallery{grid-template-columns:repeat(2,1fr);gap:22px 14px}
   .card,.card[data-size]{grid-column:span 1 !important}
 }
+/* full-width presets — span all columns at every breakpoint */
+.card[data-size="full"],
+.card[data-size="full-wide"],
+.card[data-size="full-tall"]{grid-column:1 / -1 !important}
+/* full-wide: cinematic banner crop */
+.card[data-size="full-wide"] .media{aspect-ratio:21/9}
+/* full-tall: large standing block */
+.card[data-size="full-tall"] .media{height:min(88vh,900px)}
+.card[data-size="full-wide"] .media img,
+.card[data-size="full-tall"] .media img{width:100%!important;height:100%!important;object-fit:cover!important}
+@media(max-width:560px){
+  .card[data-size="full-wide"] .media{aspect-ratio:16/9}
+  .card[data-size="full-tall"] .media{height:72vh}
+}
 /* card media — clean frame, no crop */
 .card .media{
   position:relative;overflow:hidden;background:var(--paper);
@@ -738,6 +752,21 @@ body.admin .photo-del{display:flex}
   color:var(--red);margin-top:6px;text-transform:uppercase;
 }
 .price-tag::before{content:"— "}
+
+/* ── detail-page price + currency toggle ── */
+.price-switch{margin-top:22px;display:flex;flex-direction:column;gap:10px}
+.price-amount{
+  font-family:var(--f-display);font-weight:800;
+  font-size:clamp(1.6rem,3.2vw,2.4rem);line-height:1;color:var(--ink);
+}
+.price-curr-btns{display:inline-flex;gap:6px;flex-wrap:wrap}
+.price-curr{
+  font-family:var(--f-mono);font-size:.66rem;letter-spacing:.08em;
+  padding:7px 12px;border:1.5px solid var(--ink);background:none;color:var(--ink);
+  cursor:pointer;transition:background .18s,color .18s;border-radius:3px;
+}
+.price-curr:hover{background:rgba(20,20,20,.08)}
+.price-curr.active{background:var(--ink);color:var(--paper)}
 
 /* photo edit button (admin only) */
 .photo-edit{

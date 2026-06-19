@@ -254,6 +254,35 @@
   }
   function escapeHTML(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
 
+  /* ---------- currency / price ---------- */
+  const CURRENCIES = [{ code:"GEL", sym:"₾" }, { code:"USD", sym:"$" }, { code:"EUR", sym:"€" }];
+  const CURRENCY_SYM = { GEL:"₾", USD:"$", EUR:"€" };
+  /* rates = how many GEL per 1 unit of currency */
+  function fxRates() {
+    const fx = (DATA.meta && DATA.meta.fx) || {};
+    return { GEL:1, USD:Number(fx.USD) || 2.65, EUR:Number(fx.EUR) || 2.85 };
+  }
+  function convertPrice(amount, from, to) {
+    const r = fxRates();
+    const gel = amount * (r[from] || 1);
+    return gel / (r[to] || 1);
+  }
+  function fmtMoney(amount, code) {
+    return `${CURRENCY_SYM[code] || ""} ${Math.round(amount).toLocaleString("en-US")}`;
+  }
+  /* returns {amount, code} for an object's structured price, or null */
+  function priceBase(o) {
+    if (o && o.priceAmount != null && o.priceAmount !== "" && !isNaN(o.priceAmount) && Number(o.priceAmount) > 0)
+      return { amount: Number(o.priceAmount), code: o.priceCurrency || "GEL" };
+    return null;
+  }
+  /* short price label (base currency only) for cards/captions */
+  function priceLabel(o) {
+    const pb = priceBase(o);
+    if (pb) return fmtMoney(pb.amount, pb.code);
+    return o && o.price ? String(o.price) : ""; /* legacy free-text fallback */
+  }
+
   /* heroSlider is set by initHeroSlider(); renderHero delegates to it */
   let heroSlider = null;
 
@@ -313,7 +342,7 @@
           <div class="tt">
             <h3>${escapeHTML(w.title)}</h3>
             <div class="meta">${escapeHTML(w.year)} — ${escapeHTML(w.medium)}</div>
-            ${(w.showPrice && w.price) ? `<div class="price-tag">${escapeHTML(w.price)}</div>` : ""}
+            ${(w.showPrice && priceLabel(w)) ? `<div class="price-tag">${escapeHTML(priceLabel(w))}</div>` : ""}
           </div>
         </div>`;
       c.addEventListener("click", (e) => {
@@ -644,9 +673,9 @@
           <img src="${escapeHTML(ph.src)}" alt="${escapeHTML(ph.alt || ph.caption || "")}" title="${escapeHTML(ph.alt || ph.caption || "")}" loading="lazy"${_tfmStyle(ph)}>
           <div class="view-cue">⤢</div>
         </div>
-        ${(ph.caption || (ph.showPrice && ph.price)) ? `<div class="cap"><div class="tt">
+        ${(ph.caption || (ph.showPrice && priceLabel(ph))) ? `<div class="cap"><div class="tt">
           ${ph.caption ? `<h3>${escapeHTML(ph.caption)}</h3>` : ""}
-          ${(ph.showPrice && ph.price) ? `<div class="price-tag">${escapeHTML(ph.price)}</div>` : ""}
+          ${(ph.showPrice && priceLabel(ph)) ? `<div class="price-tag">${escapeHTML(priceLabel(ph))}</div>` : ""}
         </div></div>` : ""}`;
       c.addEventListener("click", (e) => {
         if (e.target.closest(".card-tools")) return;
@@ -860,8 +889,21 @@
             ? `<p class="detail-desc" ${editAttr(w, "desc")}>${escapeHTML(w.desc || "")}</p>`
             : ""}
 
+          ${(() => {
+            const pb = priceBase(w);
+            if (w.showPrice && pb) return `
+              <div class="price-switch" id="dpPriceSwitch" data-amt="${pb.amount}" data-base="${pb.code}">
+                <span class="price-amount" id="dpPriceAmount">${escapeHTML(fmtMoney(pb.amount, pb.code))}</span>
+                <span class="price-curr-btns">
+                  ${CURRENCIES.map(c => `<button type="button" class="price-curr${c.code === pb.code ? " active" : ""}" data-curr="${c.code}">${c.sym} ${c.code}</button>`).join("")}
+                </span>
+              </div>`;
+            if (w.showPrice && w.price) return `<div class="price-amount">${escapeHTML(w.price)}</div>`;
+            return "";
+          })()}
+
           <div class="detail-cta">
-            ${w.price ? `<button class="btn-buy" data-buy-work="${w.id}">${escapeHTML(ud.buy || "შეძენა / Buy")}</button>` : ""}
+            ${(w.showPrice && priceBase(w)) ? `<button class="btn-buy" data-buy-work="${w.id}">${escapeHTML(ud.buy || "შეძენა / Buy")}</button>` : ""}
             <a class="btn solid" href="#contact" id="dpInquire">${escapeHTML(ud.inquire || "Inquire")}</a>
             <a class="btn" href="#works">${escapeHTML(ud.allWorks || "← All works")}</a>
           </div>
@@ -906,6 +948,17 @@
       });
     });
 
+    /* currency toggle on the detail price */
+    const psw = inner.querySelector("#dpPriceSwitch");
+    if (psw) {
+      inner.querySelectorAll(".price-curr").forEach(b => b.addEventListener("click", () => {
+        const amt = parseFloat(psw.dataset.amt), base = psw.dataset.base, code = b.dataset.curr;
+        const out = inner.querySelector("#dpPriceAmount");
+        if (out) out.textContent = fmtMoney(convertPrice(amt, base, code), code);
+        inner.querySelectorAll(".price-curr").forEach(x => x.classList.toggle("active", x === b));
+      }));
+    }
+
     if (window.DPAdmin) window.DPAdmin.wireDetail(w);
     $("#dpInquire") && $("#dpInquire").addEventListener("click", () => closeDetail());
   }
@@ -929,7 +982,7 @@
     const modal = $("#modal"), box = $("#modalBox");
     box.innerHTML = `
       <h3>შეძენა — ${escapeHTML(w.title)}</h3>
-      ${w.price ? `<div class="purchase-price-note">${escapeHTML(w.price)}</div>` : ""}
+      ${priceLabel(w) ? `<div class="purchase-price-note">${escapeHTML(priceLabel(w))}</div>` : ""}
       <label>სახელი *</label><input id="buyName" placeholder="სახელი" autocomplete="given-name">
       <label>გვარი *</label><input id="buySurname" placeholder="გვარი" autocomplete="family-name">
       <label>ტელეფონი</label><input id="buyPhone" type="tel" placeholder="+995 XXX XXX XXX" autocomplete="tel">
@@ -948,7 +1001,7 @@
       if (!DATA.purchaseRequests) DATA.purchaseRequests = [];
       DATA.purchaseRequests.unshift({
         id: "req_" + Date.now().toString(36),
-        workId, workTitle: w.title, price: w.price || "",
+        workId, workTitle: w.title, price: priceLabel(w),
         name, surname: ($("#buySurname").value||"").trim(),
         phone: ($("#buyPhone").value||"").trim(), email,
         message: ($("#buyMsg").value||"").trim(),
