@@ -39,6 +39,8 @@
 
   /* ---------- STORE ---------- */
   let DATA;
+  let _apiUnreachable = false; /* set when loadStore had to fall back to localStorage */
+  let _putBusy = false, _putAgain = false; /* serialize PUTs so a slow one can't clobber a newer one */
   function deepMerge(base, over) {
     if (Array.isArray(base)) return over !== undefined ? clone(over) : clone(base);
     if (base && typeof base === "object") {
@@ -74,39 +76,75 @@
       try { localStorage.setItem(STORE_KEY, JSON.stringify(DATA)); } catch (_) {}
       return;
     }
-    /* 2. Fallback: localStorage cache */
+    /* 2. Fallback: localStorage cache (READ-ONLY).
+       ⚠️ Never auto-push the cache back to the API here. The API call above can
+       fail transiently (Railway cold start / timeout); if we then pushed a
+       stale local snapshot, it would OVERWRITE newer server data and silently
+       delete recently-added works. Saving is saveStore()'s job only. */
     let saved = null;
     try { saved = JSON.parse(localStorage.getItem(STORE_KEY)); } catch (_) {}
     if (saved && Array.isArray(saved.works) && saved.works.length > 0) {
       DATA = deepMerge(DEFAULT_DATA, saved);
-      /* Push local cache to API so other devices sync */
-      const pwd = window.DPAdmin?._adminPassword;
-      if (pwd) _apiFetch('/api/data', { method:'PUT', body: JSON.stringify({ password: pwd, data: DATA }) });
+      _apiUnreachable = true; /* mark: the server didn't answer — guard saves */
       return;
     }
     /* 3. Last resort: built-in defaults */
     DATA = clone(DEFAULT_DATA);
   }
 
+  /* serialized PUT — if one is in flight, mark dirty and re-send the LATEST
+     DATA when it returns. Guarantees the final state always lands last and a
+     slow request can't overwrite a newer one. */
+  function _doPut() {
+    const pwd = window.DPAdmin?._adminPassword;
+    if (!pwd) return;
+    if (_putBusy) { _putAgain = true; return; }
+    _putBusy = true; _putAgain = false;
+    fetch(_apiBase + '/api/data', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: pwd, data: DATA })
+    }).then(r => {
+        if (r && r.ok) { _apiUnreachable = false; }
+        else if (r) { _saveFailToast("⚠ სერვერზე ვერ შეინახა (" + r.status + ") — Backup → Export"); }
+      })
+      .catch(() => { _saveFailToast("⚠ შენახვა ვერ მოხერხდა (ქსელი) — Backup → Export"); })
+      .finally(() => { _putBusy = false; if (_putAgain) _doPut(); });
+  }
+  /* throttle failure toasts so frequent saves don't spam */
+  let _lastFailToast = 0;
+  function _saveFailToast(msg) {
+    const now = Date.now();
+    if (now - _lastFailToast > 4000) { _lastFailToast = now; toast(msg); }
+  }
+
   /**
-   * saveStore() — saves immediately to localStorage, then syncs to API
-   * asynchronously (non-blocking). Requires admin password stored in
-   * window.DPAdmin._adminPassword after login.
+   * saveStore() — saves to localStorage immediately, then syncs to the API.
+   * Requires admin password (window.DPAdmin._adminPassword).
    */
-  function saveStore() {
+  async function saveStore() {
     /* 1. Immediate localStorage save */
     try { localStorage.setItem(STORE_KEY, JSON.stringify(DATA)); }
-    catch (e) { toast("⚠ localStorage სავსეა — ექსპორტი გამოიყენე"); }
+    catch (e) { toast("⚠ localStorage სავსეა — ექსპორტი (Backup) გამოიყენე"); }
 
-    /* 2. Async API sync (only when admin is logged in) */
     const pwd = window.DPAdmin?._adminPassword;
-    if (pwd) {
-      fetch(_apiBase + '/api/data', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password: pwd, data: DATA })
-      }).catch(() => {}); /* silent — localStorage is always the safety net */
+    if (!pwd) return;
+
+    /* 2. If the server was unreachable at load, our DATA may be a stale local
+       copy. Re-check before overwriting so we never delete newer server data. */
+    if (_apiUnreachable) {
+      const fresh = await _apiFetch('/api/data');
+      const freshValid = fresh && typeof fresh === 'object' && !fresh.error &&
+        (Array.isArray(fresh.works) || !!fresh.meta);
+      if (freshValid) {
+        toast("⚠ სერვერი დაბრუნდა — გადატვირთე გვერდი ცვლილების შენახვამდე");
+        return; /* don't clobber newer server data with a stale local copy */
+      }
+      _apiUnreachable = false; /* server genuinely empty/unseeded → safe to push */
     }
+
+    /* 3. Sync to API (serialized) */
+    _doPut();
   }
   function getPath(p) { return p.split(".").reduce((o, k) => (o ? o[k] : undefined), DATA); }
   function setPath(p, v) {
