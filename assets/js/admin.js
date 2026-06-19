@@ -6,6 +6,7 @@
   const D = window.DP;
   const $ = D.$, $$ = D.$$;
   const AUTH_KEY = "dp_admin_on";
+  const PWD_KEY  = "dp_admin_pwd";
 
   /* ---------- modal helper ---------- */
   const modal = $("#modal"), modalBox = $("#modalBox");
@@ -62,20 +63,25 @@
   function isAdmin() { return document.body.classList.contains("admin"); }
 
   function enterAdmin(pwd) {
+    /* on a page-reload restore we get pwd=null — recover it from sessionStorage
+       so edits keep syncing to the server (otherwise saves silently stay local). */
+    if (pwd == null) pwd = sessionStorage.getItem(PWD_KEY) || null;
     _adminPassword = pwd;
     if (window.DPAdmin) window.DPAdmin._adminPassword = pwd;
     document.body.classList.add("admin");
     sessionStorage.setItem(AUTH_KEY, "1");
+    if (pwd) sessionStorage.setItem(PWD_KEY, pwd);
     makeTextEditable(true);
     wireCards();
     wireHeroImgTransform();
-    D.toast("✎ Edit mode ჩართულია");
+    D.toast(pwd ? "✎ Edit mode ჩართულია" : "✎ Edit mode — შესანახად თავიდან შედი პაროლით");
   }
   function exitAdmin() {
     _adminPassword = null;
     if (window.DPAdmin) window.DPAdmin._adminPassword = null;
     document.body.classList.remove("admin");
     sessionStorage.removeItem(AUTH_KEY);
+    sessionStorage.removeItem(PWD_KEY);
     makeTextEditable(false);
     D.rerender();
     D.toast("Edit mode გამოირთო");

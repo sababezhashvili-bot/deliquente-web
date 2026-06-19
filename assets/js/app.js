@@ -55,13 +55,18 @@
    * Priority: API (Railway PostgreSQL) → localStorage cache → DEFAULT_DATA
    */
   async function loadStore() {
-    /* 1. Try API — only use if response has actual works data */
+    /* 1. Try API.
+       The DB is authoritative whenever it holds a real saved record — i.e. a
+       non-error object that has a `works` array (even an EMPTY one) or a `meta`
+       block. A truly un-seeded DB returns null, which correctly falls through
+       to the localStorage / defaults path below. (Earlier this required
+       works.length > 0, which made deleting every work resurrect the defaults
+       and made the two domains diverge.) */
     const apiData = await _apiFetch('/api/data');
     const apiValid = apiData &&
       typeof apiData === 'object' &&
       !apiData.error &&
-      Array.isArray(apiData.works) &&   // must have works array
-      apiData.works.length > 0;          // must not be empty
+      (Array.isArray(apiData.works) || !!apiData.meta);
 
     if (apiValid) {
       DATA = deepMerge(DEFAULT_DATA, apiData);
