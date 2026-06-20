@@ -733,57 +733,69 @@
   }
 
   /* ===================================================================
-     HOME / LANDING — editorial slideshow (works + photography)
+     HOME / LANDING — full-wide horizontal carousel (works + photography)
      =================================================================== */
-  let _homeSlides = [], _homeIdx = 0, _homeTimer = null, _homeWired = false;
+  let _homeSlides = [], _homeCarWired = false;
+  const _HOME_OFFS = [56, 8, 40, 0, 28, 64, 16, 48]; /* staggered top offsets (px) */
+  /* lightweight Cloudinary thumbnail (3:4 card) — big speed win on the home carousel */
+  function _cldThumb(url) {
+    if (typeof url !== "string" || !url.includes("res.cloudinary.com") || !url.includes("/upload/")) return url;
+    return url.replace(/\/upload\/[^/]+\//, "/upload/c_fill,g_auto,f_auto,q_auto,w_640,h_854/");
+  }
   function _homeSlideData() {
     const src = (DATA.home && DATA.home.slideSource) || "all";
     const out = [];
     if (src !== "photos") {
       const ids = DATA.hero && DATA.hero.sliderWorkIds; /* reuse the Cover curation */
       const works = (ids && ids.length) ? ids.map(id => workById(id)).filter(Boolean) : (DATA.works || []);
-      works.forEach(w => out.push({ src: w.img, kind: "work", id: w.id, label: w.title || "" }));
+      works.forEach(w => out.push({ src: w.img, kind: "work", id: w.id, label: w.title || "Untitled" }));
     }
-    if (src !== "works") ((DATA.photography && DATA.photography.photos) || []).forEach((p, i) => out.push({ src: p.src, kind: "photo", idx: i, label: p.caption || "" }));
+    if (src !== "works") ((DATA.photography && DATA.photography.photos) || []).forEach((p, i) => out.push({ src: p.src, kind: "photo", idx: i, label: p.caption || "Untitled" }));
     return out;
   }
   function renderHome() {
-    const slidesEl = document.getElementById("homeSlides");
-    if (!slidesEl) return;
+    const car = document.getElementById("homeCarousel");
+    if (!car) return;
     _homeSlides = _homeSlideData();
-    _homeIdx = Math.min(_homeIdx, Math.max(0, _homeSlides.length - 1));
-    slidesEl.innerHTML = _homeSlides.map((s, i) =>
-      `<figure class="home-slide${i === _homeIdx ? " active" : ""}" data-hi="${i}">
-         <img src="${escapeHTML(s.src)}" alt="${escapeHTML(s.label)}" loading="${i < 2 ? "eager" : "lazy"}">
-       </figure>`).join("");
-    _homeUpdate();
-    if (!_homeWired) {
-      _homeWired = true;
-      const prev = document.getElementById("homePrev"), next = document.getElementById("homeNext");
-      prev && prev.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); _homeGo(_homeIdx - 1); _homeBump(); });
-      next && next.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); _homeGo(_homeIdx + 1); _homeBump(); });
-      slidesEl.addEventListener("click", () => {
-        const s = _homeSlides[_homeIdx]; if (!s) return;
-        if (s.kind === "work") location.hash = "#/work/" + s.id;
-        else openPhotoLightbox((DATA.photography && DATA.photography.photos) || [], s.idx);
-      });
-    }
+    car.innerHTML = _homeSlides.map((s, i) =>
+      `<article class="hc-card" data-hi="${i}" style="--off:${_HOME_OFFS[i % _HOME_OFFS.length]}px">
+         <span class="hc-label">◯ ${escapeHTML(s.label)}</span>
+         <div class="hc-media"><img src="${escapeHTML(_cldThumb(s.src))}" alt="${escapeHTML(s.label)}" loading="${i < 5 ? "eager" : "lazy"}" draggable="false"></div>
+       </article>`).join("");
+    _homeWireCarousel(car);
   }
-  function _homeUpdate() {
-    const slides = $$("#homeSlides .home-slide");
-    slides.forEach((el, i) => el.classList.toggle("active", i === _homeIdx));
-    const c = document.getElementById("homeCounter");
-    if (c) c.textContent = _homeSlides.length
-      ? String(_homeIdx + 1).padStart(2, "0") + " / " + String(_homeSlides.length).padStart(2, "0") : "";
+  function _homeWireCarousel(car) {
+    if (car._wired) return;
+    car._wired = true;
+    /* open work / photo on click (suppressed right after a drag) */
+    let down = false, sx = 0, sl = 0, moved = false;
+    car.addEventListener("click", (e) => {
+      if (moved) { e.preventDefault(); e.stopPropagation(); moved = false; return; }
+      const card = e.target.closest(".hc-card"); if (!card) return;
+      const s = _homeSlides[+card.dataset.hi]; if (!s) return;
+      if (s.kind === "work") location.hash = "#/work/" + s.id;
+      else openPhotoLightbox((DATA.photography && DATA.photography.photos) || [], s.idx);
+    });
+    /* arrows */
+    const step = () => Math.min(car.clientWidth * 0.8, 640);
+    const prev = document.getElementById("hcPrev"), next = document.getElementById("hcNext");
+    prev && (prev.onclick = () => car.scrollBy({ left: -step(), behavior: "smooth" }));
+    next && (next.onclick = () => car.scrollBy({ left:  step(), behavior: "smooth" }));
+    /* vertical wheel → horizontal scroll */
+    car.addEventListener("wheel", (e) => {
+      if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) { car.scrollLeft += e.deltaY; e.preventDefault(); }
+    }, { passive: false });
+    /* drag to slide */
+    car.addEventListener("pointerdown", (e) => { down = true; moved = false; sx = e.clientX; sl = car.scrollLeft; car.classList.add("dragging"); });
+    car.addEventListener("pointermove", (e) => { if (!down) return; const dx = e.clientX - sx; if (Math.abs(dx) > 4) moved = true; car.scrollLeft = sl - dx; });
+    const up = () => { down = false; car.classList.remove("dragging"); };
+    car.addEventListener("pointerup", up);
+    car.addEventListener("pointerleave", up);
   }
-  function _homeGo(n) {
-    if (!_homeSlides.length) return;
-    _homeIdx = ((n % _homeSlides.length) + _homeSlides.length) % _homeSlides.length;
-    _homeUpdate();
+  function _homeScroll(dir) {
+    const car = document.getElementById("homeCarousel");
+    if (car) car.scrollBy({ left: dir * Math.min(car.clientWidth * 0.8, 640), behavior: "smooth" });
   }
-  function _homeBump() { clearInterval(_homeTimer); _homeTimer = setInterval(() => _homeGo(_homeIdx + 1), 5000); }
-  function _homeStart() { if (_homeSlides.length > 1) _homeBump(); }
-  function _homeStop() { clearInterval(_homeTimer); }
 
   /* ===================================================================
      ROUTER — show one page (section) at a time
@@ -802,7 +814,6 @@
     document.querySelectorAll(".nav-links a[data-nav-link]").forEach(a =>
       a.classList.toggle("nav-current", a.getAttribute("data-nav-link") === target.id));
     window.scrollTo(0, 0);
-    if (target.id === "home") _homeStart(); else _homeStop();
   }
   function routePage() {
     const h = (location.hash || "").replace(/^#\/?/, ""); /* strip leading # or #/ */
@@ -917,7 +928,15 @@
     return t ? ` style="transform:translate(${t.x||0}px,${t.y||0}px) scale(${t.s||1})"` : "";
   }
 
+  /* apply the selected font theme (editorial default) to <body data-font> */
+  function applyFontTheme() {
+    const t = (DATA.meta && DATA.meta.fontTheme) || "editorial";
+    if (t === "editorial") document.body.removeAttribute("data-font");
+    else document.body.setAttribute("data-font", t);
+  }
+
   function renderAll() {
+    applyFontTheme();
     bindEditables();
     bindStaticText();
     renderHero();
@@ -1743,7 +1762,7 @@
     renderAbout, renderHero, renderPhotography, bindEditables,
     bindStaticText, applyHiddenSections, renderNav,
     renderCustomSections, applySectionOrder, enableReorder, openPhotoLightbox,
-    renderHome, routePage, showPage,
+    renderHome, routePage, showPage, applyFontTheme,
     workById, imgFor,
     getPath, setPath, clone, toast, $, $$,
     openDetail, renderDetail, openPurchaseModal,
@@ -1838,8 +1857,8 @@
       const homeActive = document.getElementById("home") &&
         document.getElementById("home").classList.contains("page-active");
       if (homeActive) {
-        if (e.key === "ArrowLeft")  { e.preventDefault(); _homeGo(_homeIdx - 1); _homeBump(); }
-        if (e.key === "ArrowRight") { e.preventDefault(); _homeGo(_homeIdx + 1); _homeBump(); }
+        if (e.key === "ArrowLeft")  { e.preventDefault(); _homeScroll(-1); }
+        if (e.key === "ArrowRight") { e.preventDefault(); _homeScroll(1); }
       }
     });
     routePage(); /* show the initial page */

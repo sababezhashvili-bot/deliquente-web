@@ -1353,6 +1353,13 @@
           ${f("meta.navTitle","Artist name (nav + footer)")}
           ${f("meta.navSubtitle","Studio name (nav + footer)")}
           ${f("meta.city","City / location (footer)")}
+          <div class="tp-field">
+            <label>Font theme / საიტის ფონტი</label>
+            <select id="tpFontTheme">
+              ${["editorial:Editorial — Archivo + Inter (default)","minimal:Minimal — Inter","mono:Mono labels — Inter + Space Mono","classic:Classic — original"]
+                .map(o => { const [v,l] = o.split(":"); return `<option value="${v}" ${((D.data.meta&&D.data.meta.fontTheme)||"editorial")===v?"selected":""}>${l}</option>`; }).join("")}
+            </select>
+          </div>
         </div>
 
         <div class="tp-section">
@@ -1533,6 +1540,9 @@
       document.getElementById("modalBox").querySelectorAll(".tp[data-path]").forEach(el => {
         D.setPath(el.dataset.path, el.value);
       });
+      /* font theme */
+      const ft = document.getElementById("tpFontTheme");
+      if (ft) { if (!D.data.meta) D.data.meta = {}; D.data.meta.fontTheme = ft.value; }
       /* collect nav links */
       if (navRows) {
         const links = [...navRows.querySelectorAll(".tp-nav-row")].map(r => ({
