@@ -24,3 +24,5 @@ dist/
 images/
 
 .vercel
+refs.txt
+today.txt
