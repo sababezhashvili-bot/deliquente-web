@@ -230,7 +230,7 @@
     const closeMenu = () => wrap.classList.remove("open");
     links.forEach(lk => {
       const a = document.createElement("a");
-      a.href = "#" + (lk.target || "");
+      a.href = "#/" + (lk.target || "");           /* page route */
       a.textContent = lk.label || "";
       a.setAttribute("data-nav-link", lk.target || "");
       a.addEventListener("click", closeMenu);
@@ -245,17 +245,15 @@
   function applyHiddenSections() {
     const hidden  = (DATA.meta && DATA.meta.hiddenSections) || [];
     const isAdmin = document.body.classList.contains("admin");
-    /* every section that has an id (built-in + custom) */
-    document.querySelectorAll('main > section[id], .custom-section[id]').forEach(sec => {
-      const id   = sec.id;
-      const hide = hidden.includes(id);
-      sec.style.display = (!isAdmin && hide) ? 'none' : '';
-      sec.classList.toggle('section-hidden-admin', isAdmin && hide);
+    /* mark hidden sections (admin visual only). Page VISIBILITY is owned by the
+       router (showPage) — we no longer toggle section display here. */
+    document.querySelectorAll('main > section[id]').forEach(sec => {
+      sec.classList.toggle('section-hidden-admin', isAdmin && hidden.includes(sec.id));
     });
-    /* nav links: hide a link whose target section is hidden */
+    /* nav links: hide a link whose target section is hidden (admin sees all) */
     document.querySelectorAll('.nav-links a[data-nav-link]').forEach(lnk => {
       const target = lnk.getAttribute('data-nav-link');
-      lnk.style.display = hidden.includes(target) ? 'none' : '';
+      lnk.style.display = (!isAdmin && hidden.includes(target)) ? 'none' : '';
     });
   }
 
@@ -283,6 +281,8 @@
       if (node.dataset.edit === "hero.name") {
         node.innerHTML = String(val).split("\n")
           .map((l) => `<span class="ln">${escapeHTML(l)}</span>`).join("");
+      } else if (node.dataset.edit === "home.title") {
+        node.innerHTML = String(val).split("\n").map((l) => escapeHTML(l)).join("<br>");
       } else if (node.dataset.edit === "contact.heading") {
         node.textContent = val;
       } else {
@@ -733,6 +733,85 @@
   }
 
   /* ===================================================================
+     HOME / LANDING — editorial slideshow (works + photography)
+     =================================================================== */
+  let _homeSlides = [], _homeIdx = 0, _homeTimer = null, _homeWired = false;
+  function _homeSlideData() {
+    const src = (DATA.home && DATA.home.slideSource) || "all";
+    const out = [];
+    if (src !== "photos") {
+      const ids = DATA.hero && DATA.hero.sliderWorkIds; /* reuse the Cover curation */
+      const works = (ids && ids.length) ? ids.map(id => workById(id)).filter(Boolean) : (DATA.works || []);
+      works.forEach(w => out.push({ src: w.img, kind: "work", id: w.id, label: w.title || "" }));
+    }
+    if (src !== "works") ((DATA.photography && DATA.photography.photos) || []).forEach((p, i) => out.push({ src: p.src, kind: "photo", idx: i, label: p.caption || "" }));
+    return out;
+  }
+  function renderHome() {
+    const slidesEl = document.getElementById("homeSlides");
+    if (!slidesEl) return;
+    _homeSlides = _homeSlideData();
+    _homeIdx = Math.min(_homeIdx, Math.max(0, _homeSlides.length - 1));
+    slidesEl.innerHTML = _homeSlides.map((s, i) =>
+      `<figure class="home-slide${i === _homeIdx ? " active" : ""}" data-hi="${i}">
+         <img src="${escapeHTML(s.src)}" alt="${escapeHTML(s.label)}" loading="${i < 2 ? "eager" : "lazy"}">
+       </figure>`).join("");
+    _homeUpdate();
+    if (!_homeWired) {
+      _homeWired = true;
+      const prev = document.getElementById("homePrev"), next = document.getElementById("homeNext");
+      prev && prev.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); _homeGo(_homeIdx - 1); _homeBump(); });
+      next && next.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); _homeGo(_homeIdx + 1); _homeBump(); });
+      slidesEl.addEventListener("click", () => {
+        const s = _homeSlides[_homeIdx]; if (!s) return;
+        if (s.kind === "work") location.hash = "#/work/" + s.id;
+        else openPhotoLightbox((DATA.photography && DATA.photography.photos) || [], s.idx);
+      });
+    }
+  }
+  function _homeUpdate() {
+    const slides = $$("#homeSlides .home-slide");
+    slides.forEach((el, i) => el.classList.toggle("active", i === _homeIdx));
+    const c = document.getElementById("homeCounter");
+    if (c) c.textContent = _homeSlides.length
+      ? String(_homeIdx + 1).padStart(2, "0") + " / " + String(_homeSlides.length).padStart(2, "0") : "";
+  }
+  function _homeGo(n) {
+    if (!_homeSlides.length) return;
+    _homeIdx = ((n % _homeSlides.length) + _homeSlides.length) % _homeSlides.length;
+    _homeUpdate();
+  }
+  function _homeBump() { clearInterval(_homeTimer); _homeTimer = setInterval(() => _homeGo(_homeIdx + 1), 5000); }
+  function _homeStart() { if (_homeSlides.length > 1) _homeBump(); }
+  function _homeStop() { clearInterval(_homeTimer); }
+
+  /* ===================================================================
+     ROUTER — show one page (section) at a time
+     =================================================================== */
+  function showPage(id) {
+    const main = document.getElementById("top"); if (!main) return;
+    const pages = [...main.querySelectorAll(":scope > section[id]")];
+    let target = document.getElementById(id);
+    if (!target || !pages.includes(target)) target = document.getElementById("home");
+    pages.forEach(p => p.classList.toggle("page-active", p === target));
+    /* a page was display:none, so its reveal animations may not fire — force them visible */
+    target.querySelectorAll(".reveal:not(.in)").forEach(r => r.classList.add("in"));
+    /* legacy hero never shows as a page */
+    const hero = document.getElementById("hero"); if (hero) hero.style.display = "none";
+    /* nav current-state */
+    document.querySelectorAll(".nav-links a[data-nav-link]").forEach(a =>
+      a.classList.toggle("nav-current", a.getAttribute("data-nav-link") === target.id));
+    window.scrollTo(0, 0);
+    if (target.id === "home") _homeStart(); else _homeStop();
+  }
+  function routePage() {
+    const h = (location.hash || "").replace(/^#\/?/, ""); /* strip leading # or #/ */
+    if (h.indexOf("work/") === 0) { openDetail(h.slice(5)); return; }
+    if ($("#detail").classList.contains("open")) closeDetail();
+    showPage(!h || h === "home" || h === "top" ? "home" : h);
+  }
+
+  /* ===================================================================
      CUSTOM SECTIONS — admin-created flexible sections
      (eyebrow + heading + intro + body text + image grid)
      =================================================================== */
@@ -849,6 +928,7 @@
     renderJournal();
     renderPhotography();
     renderContact();
+    renderHome();
     renderCustomSections();
     applySectionOrder();
     applyHiddenSections();
@@ -942,8 +1022,8 @@
 
           <div class="detail-cta">
             ${(w.showPrice && priceBase(w)) ? `<button class="btn-buy" data-buy-work="${w.id}">${escapeHTML(ud.buy || "შეძენა / Buy")}</button>` : ""}
-            <a class="btn solid" href="#contact" id="dpInquire">${escapeHTML(ud.inquire || "Inquire")}</a>
-            <a class="btn" href="#works">${escapeHTML(ud.allWorks || "← All works")}</a>
+            <a class="btn solid" href="#/contact" id="dpInquire">${escapeHTML(ud.inquire || "Inquire")}</a>
+            <a class="btn" href="#/works">${escapeHTML(ud.allWorks || "← All works")}</a>
           </div>
 
           <!-- Admin-only quick tools -->
@@ -1066,12 +1146,6 @@
   function closeDetail() {
     $("#detail").classList.remove("open");
     document.body.style.overflow = "";
-    if (location.hash.startsWith("#work/")) history.replaceState(null, "", location.pathname + "#works");
-  }
-  function handleHash() {
-    const h = location.hash;
-    if (h.indexOf("#work/") === 0) openDetail(h.slice(6));
-    else closeDetail();
   }
 
   /* ===================================================================
@@ -1669,6 +1743,7 @@
     renderAbout, renderHero, renderPhotography, bindEditables,
     bindStaticText, applyHiddenSections, renderNav,
     renderCustomSections, applySectionOrder, enableReorder, openPhotoLightbox,
+    renderHome, routePage, showPage,
     workById, imgFor,
     getPath, setPath, clone, toast, $, $$,
     openDetail, renderDetail, openPurchaseModal,
@@ -1748,20 +1823,26 @@
     navMenu();
     contactForm();
     spawnBgFrags();
-    initHeroSlider();
     initImageProtection();
     $("#year").textContent = new Date().getFullYear();
-    $("#detailBack").addEventListener("click", () => { closeDetail(); });
+    /* back from work detail → works page */
+    $("#detailBack").addEventListener("click", () => { location.hash = "#/works"; });
 
-    window.addEventListener("hashchange", handleHash);
+    window.addEventListener("hashchange", routePage);
     document.addEventListener("keydown", (e) => {
-      if (e.key === "Escape") { closeDetail(); return; }
-      /* arrow keys navigate hero slider when detail is closed */
-      if (document.getElementById("detail").classList.contains("open")) return;
-      if (e.key === "ArrowLeft"  && heroSlider) { e.preventDefault(); heroSlider.prev(); }
-      if (e.key === "ArrowRight" && heroSlider) { e.preventDefault(); heroSlider.next(); }
+      if (document.getElementById("detail").classList.contains("open")) {
+        if (e.key === "Escape") location.hash = "#/works";
+        return;
+      }
+      /* arrow keys drive the home slideshow when home is the active page */
+      const homeActive = document.getElementById("home") &&
+        document.getElementById("home").classList.contains("page-active");
+      if (homeActive) {
+        if (e.key === "ArrowLeft")  { e.preventDefault(); _homeGo(_homeIdx - 1); _homeBump(); }
+        if (e.key === "ArrowRight") { e.preventDefault(); _homeGo(_homeIdx + 1); _homeBump(); }
+      }
     });
-    handleHash();
+    routePage(); /* show the initial page */
   }
   document.addEventListener("DOMContentLoaded", init);
 })();

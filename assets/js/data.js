@@ -87,6 +87,21 @@ const DEFAULT_DATA = {
     }
   },
 
+  /* ---- HOME / LANDING PAGE ----------------------------------------
+     მთავარი გვერდი — მინიმალისტური ედიტორიალი: სლაიდი (ნამუშევრები +
+     ფოტოები) და ტექსტი არტისტზე. იმართება პირდაპირ გვერდზე (admin).
+     ----------------------------------------------------------------- */
+  home: {
+    eyebrow: "SABA BEZHASHVILI — CONTEMPORARY PAINTER · TBILISI",
+    title: "Image is\nEverything",
+    col1: "Art exists between memory, emotion and chaos. Each piece is a genuine connection — raw, instinctive, unfiltered.",
+    col2: "A living archive of paintings and photography. Faces, eyes and scrawled words collide — half memory, half dream.",
+    col3: "Step inside the work. Explore the portfolio, the photography and the process behind each piece.",
+    cta: "Enter portfolio →",
+    /* slide source: 'all' = works + photos · 'works' · 'photos' */
+    slideSource: "all"
+  },
+
   worksSection: {
     heading: "Featured\nWorks",
     tagline: "A living archive — click any piece to step inside it."

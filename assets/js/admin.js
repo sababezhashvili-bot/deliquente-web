@@ -112,7 +112,7 @@
   /* ===================================================================
      INLINE TEXT EDIT  ([data-edit])
      =================================================================== */
-  const MULTILINE = new Set(["hero.name", "contact.heading"]);
+  const MULTILINE = new Set(["hero.name", "contact.heading", "home.title"]);
   function makeTextEditable(on) {
     $$("[data-edit]").forEach((node) => {
       const path = node.dataset.edit;
@@ -1356,7 +1356,17 @@
         </div>
 
         <div class="tp-section">
-          <div class="tp-section-title">01 — Hero</div>
+          <div class="tp-section-title">0 — Home / Landing</div>
+          ${f("home.eyebrow","Top label")}
+          ${f("home.title","Big title (Enter = line break)",true,2)}
+          ${f("home.col1","Column 1",true,3)}
+          ${f("home.col2","Column 2",true,3)}
+          ${f("home.col3","Column 3",true,3)}
+          ${f("home.cta","Enter button")}
+        </div>
+
+        <div class="tp-section">
+          <div class="tp-section-title">01 — Hero (legacy)</div>
           ${f("hero.eyebrow","Eyebrow label")}
           ${f("hero.role","Role / პოზიცია")}
           ${f("hero.statement","Statement / განცხადება",true,2)}
