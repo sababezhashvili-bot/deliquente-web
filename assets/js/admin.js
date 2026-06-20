@@ -1566,6 +1566,7 @@
     wireCards, wireDetail, wireImgTransforms, wireHeroImgTransform,
     openTextPanel, openCropModal, openSectionsPanel,
     editExhibition: exModal, editPost: postModal,
+    editWork: workModal, deleteWork: delWork, /* used by the free-move canvas */
     uploadImage,    /* used by app.js for photo uploads */
     refreshEditable: () => makeTextEditable(isAdmin()), /* re-bind inline edit after dynamic render */
     wirePhotoCards, wireCustomMedia, /* drag-reorder for photography / custom media */

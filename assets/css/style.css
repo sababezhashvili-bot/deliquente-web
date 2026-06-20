@@ -2517,3 +2517,32 @@ body.admin .admin-fab svg{width:20px;height:20px}
   .hc-card{width:72vw}
   .hc-arrow{opacity:.92}
 }
+
+/* =====================================================================
+   FREE-MOVE CANVAS (Works page)
+   ===================================================================== */
+.works-admin-row{display:flex;flex-wrap:wrap;gap:10px}
+.gallery.free-canvas{
+  position:relative;display:block;min-height:600px;
+  padding:0 clamp(16px,3vw,40px);
+}
+.fc-item{position:absolute;box-sizing:border-box}
+.fc-work{cursor:pointer}
+body.admin .fc-item{cursor:grab;touch-action:none}
+body.admin .fc-item.fc-dragging{cursor:grabbing;z-index:50;opacity:.94}
+.fc-work .media{position:relative;overflow:hidden;background:var(--paper);box-shadow:6px 6px 0 rgba(20,20,20,.14)}
+.fc-work .media img{width:100%;height:auto;display:block}
+.fc-work .cap{margin-top:10px}
+.fc-text-body{font-size:clamp(.95rem,1.4vw,1.2rem);line-height:1.6;white-space:pre-wrap;outline:none;color:var(--ink)}
+body.admin .fc-text-body{outline:1px dashed rgba(0,0,0,.28);min-height:1.4em;padding:8px;border-radius:2px}
+body.admin .fc-text-body:focus{outline:2px solid var(--blue);background:rgba(45,108,223,.06)}
+.fc-text-tools{position:absolute;top:-12px;right:-12px;z-index:8}
+.fc-text-tools button{width:26px;height:26px;border-radius:50%;border:none;background:var(--red);color:#fff;cursor:pointer;font-size:.8rem}
+.fc-resize{position:absolute;right:-7px;bottom:-7px;width:18px;height:18px;background:var(--blue);border:2px solid #fff;border-radius:50%;cursor:nwse-resize;z-index:7}
+.fc-item .card-tools{z-index:9}
+/* mobile: ignore free positions, stack cleanly */
+@media(max-width:760px){
+  .gallery.free-canvas{position:static;min-height:0!important;display:flex;flex-direction:column;gap:26px;padding:0 16px}
+  .fc-item{position:static!important;left:auto!important;top:auto!important;width:100%!important}
+  .fc-resize,.fc-text-tools{display:none}
+}

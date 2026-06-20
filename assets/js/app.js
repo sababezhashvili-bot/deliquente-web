@@ -358,6 +358,11 @@
         });
       }
     }
+    /* free-move canvas mode? render absolutely-positioned works + text blocks */
+    const free = !!(DATA.meta && DATA.meta.worksFree);
+    g.classList.toggle("free-canvas", free);
+    if (free) { renderWorksFree(g); observeReveal(); return; }
+
     DATA.works.forEach((w, i) => {
       const c = document.createElement("article");
       c.className = "card";
@@ -391,6 +396,136 @@
     });
     observeReveal();
     if (window.DPAdmin) window.DPAdmin.wireCards();
+  }
+
+  /* ===================================================================
+     FREE-MOVE CANVAS (Works page) — absolute positions, drag anywhere
+     pos = { x:left%  y:top(px)  w:width% }.  Mobile auto-stacks (CSS).
+     =================================================================== */
+  function _fcDefaultPos(i) { return { x: 1.5 + (i % 3) * 33, y: 20 + Math.floor(i / 3) * 470, w: 30 }; }
+  function _fcUpdateHeight(g) {
+    let max = 0;
+    g.querySelectorAll(".fc-item").forEach(el => { const b = el.offsetTop + el.offsetHeight; if (b > max) max = b; });
+    g.style.minHeight = (max + 50) + "px";
+  }
+  function _fcWire(el, obj, g) {
+    if (!obj.pos) obj.pos = { x: parseFloat(el.style.left) || 2, y: parseFloat(el.style.top) || 10, w: parseFloat(el.style.width) || 30 };
+    let dragging = false, sx = 0, sy = 0, sl = 0, st = 0;
+    el.addEventListener("pointerdown", (e) => {
+      if (e.target.closest(".card-tools,.fc-resize,.fc-text-tools")) return;
+      if (e.target.isContentEditable) return;
+      dragging = true; el._dragged = false; sx = e.clientX; sy = e.clientY; sl = obj.pos.x; st = obj.pos.y;
+      el.classList.add("fc-dragging"); try { el.setPointerCapture(e.pointerId); } catch (_) {}
+    });
+    el.addEventListener("pointermove", (e) => {
+      if (!dragging) return;
+      const cw = g.clientWidth || 1200;
+      let nx = sl + ((e.clientX - sx) / cw) * 100;
+      let ny = st + (e.clientY - sy);
+      nx = Math.max(0, Math.min(100 - (obj.pos.w || 30), nx));
+      ny = Math.max(0, ny);
+      if (Math.abs(e.clientX - sx) + Math.abs(e.clientY - sy) > 3) el._dragged = true;
+      obj.pos.x = nx; obj.pos.y = ny; el.style.left = nx + "%"; el.style.top = ny + "px";
+      _fcUpdateHeight(g);
+    });
+    const up = () => { if (dragging) { dragging = false; el.classList.remove("fc-dragging"); saveStore(); } };
+    el.addEventListener("pointerup", up);
+    el.addEventListener("pointercancel", up);
+    /* resize (width) handle */
+    const rz = el.querySelector(".fc-resize");
+    if (rz) {
+      let r = false, rsx = 0, rsw = 0;
+      rz.addEventListener("pointerdown", (e) => { e.stopPropagation(); r = true; rsx = e.clientX; rsw = obj.pos.w || 30; try { rz.setPointerCapture(e.pointerId); } catch (_) {} });
+      rz.addEventListener("pointermove", (e) => {
+        if (!r) return; const cw = g.clientWidth || 1200;
+        let nw = rsw + ((e.clientX - rsx) / cw) * 100; nw = Math.max(8, Math.min(100, nw));
+        obj.pos.w = nw; el.style.width = nw + "%"; _fcUpdateHeight(g);
+      });
+      const ru = () => { if (r) { r = false; saveStore(); } };
+      rz.addEventListener("pointerup", ru); rz.addEventListener("pointercancel", ru);
+    }
+  }
+  function renderWorksFree(g) {
+    const admin = document.body.classList.contains("admin");
+    let assignedDefault = false;
+    g.innerHTML = "";
+    /* works */
+    DATA.works.forEach((w, i) => {
+      if (!w.pos) { w.pos = _fcDefaultPos(i); assignedDefault = true; }
+      const p = w.pos;
+      const el = document.createElement("article");
+      el.className = "fc-item fc-work card";
+      el.dataset.id = w.id;
+      el.style.left = p.x + "%"; el.style.top = p.y + "px"; el.style.width = p.w + "%";
+      el.innerHTML = `
+        <div class="media">
+          <div class="card-tools">
+            <button data-fctool="edit" title="რედაქტირება">✎</button>
+            <button data-fctool="open" title="გახსნა">↗</button>
+            <button data-fctool="del"  title="წაშლა">✕</button>
+          </div>
+          <img src="${w.img}" alt="${escapeHTML(w.alt || w.title)}" loading="lazy"${_tfmStyle(w)} onload="window.DP&&window.DP._fcImgLoaded&&window.DP._fcImgLoaded()">
+          ${admin ? '<span class="fc-resize" title="ზომა"></span>' : ""}
+        </div>
+        ${(w.title || (w.showPrice && priceLabel(w))) ? `<div class="cap"><div class="tt">
+          <h3>${escapeHTML(w.title)}</h3>
+          ${(w.showPrice && priceLabel(w)) ? `<div class="price-tag">${escapeHTML(priceLabel(w))}</div>` : ""}
+        </div></div>` : ""}`;
+      el.addEventListener("click", (e) => {
+        if (e.target.closest(".card-tools,.fc-resize")) return;
+        if (el._dragged) { el._dragged = false; return; }
+        location.hash = "work/" + w.id;
+      });
+      if (admin) {
+        el.querySelector('[data-fctool="edit"]').onclick = (e) => { e.stopPropagation(); window.DPAdmin && window.DPAdmin.editWork(w.id); };
+        el.querySelector('[data-fctool="open"]').onclick = (e) => { e.stopPropagation(); location.hash = "work/" + w.id; };
+        el.querySelector('[data-fctool="del"]').onclick  = (e) => { e.stopPropagation(); window.DPAdmin && window.DPAdmin.deleteWork(w.id); };
+        _fcWire(el, w, g);
+      }
+      g.appendChild(el);
+    });
+    /* text blocks */
+    (DATA.canvasTexts || []).forEach((t) => {
+      if (!t.pos) { t.pos = { x: 4, y: 20, w: 34 }; assignedDefault = true; }
+      const el = document.createElement("div");
+      el.className = "fc-item fc-text";
+      el.dataset.ctid = t.id;
+      el.style.left = t.pos.x + "%"; el.style.top = t.pos.y + "px"; el.style.width = t.pos.w + "%";
+      el.innerHTML = `
+        ${admin ? `<div class="fc-text-tools admin-only"><button data-cttool="del" title="წაშლა">✕</button></div>` : ""}
+        <div class="fc-text-body"${admin ? ' contenteditable="true" spellcheck="false"' : ""}>${escapeHTML(t.text || "")}</div>
+        ${admin ? '<span class="fc-resize" title="ზომა"></span>' : ""}`;
+      if (admin) {
+        const body = el.querySelector(".fc-text-body");
+        body.addEventListener("blur", () => { t.text = body.innerText.trim(); saveStore(); });
+        el.querySelector('[data-cttool="del"]').onclick = (e) => {
+          e.stopPropagation();
+          if (!confirm("წავშალო ეს ტექსტი?")) return;
+          DATA.canvasTexts = DATA.canvasTexts.filter(x => x.id !== t.id);
+          saveStore(); renderGallery();
+        };
+        _fcWire(el, t, g);
+      }
+      g.appendChild(el);
+    });
+    if (admin && assignedDefault) saveStore(); /* persist newly-assigned default positions once */
+    _fcUpdateHeight(g);
+    setTimeout(() => _fcUpdateHeight(g), 400);
+  }
+  function _fcImgLoaded() { const g = document.getElementById("gallery"); if (g && g.classList.contains("free-canvas")) _fcUpdateHeight(g); }
+  function addCanvasText() {
+    DATA.canvasTexts = DATA.canvasTexts || [];
+    DATA.canvasTexts.push({ id: "ct" + Date.now().toString(36), text: "ახალი ტექსტი — დააწკაპე და ჩაასწორე", pos: { x: 4, y: 20, w: 34 } });
+    saveStore(); renderGallery();
+  }
+  function toggleWorksFree() {
+    if (!DATA.meta) DATA.meta = {};
+    DATA.meta.worksFree = !DATA.meta.worksFree;
+    saveStore(); renderGallery(); _updateFreeToggleLabel();
+  }
+  function _updateFreeToggleLabel() {
+    const b = document.getElementById("worksFreeToggle");
+    if (b) b.textContent = "⤢ თავისუფალი განლაგება: " + ((DATA.meta && DATA.meta.worksFree) ? "ON" : "OFF");
   }
 
   function renderAbout() {
@@ -1837,7 +1972,7 @@
     renderAbout, renderHero, renderPhotography, bindEditables,
     bindStaticText, applyHiddenSections, renderNav,
     renderCustomSections, applySectionOrder, enableReorder, openPhotoLightbox,
-    renderHome, routePage, showPage, applyFontTheme,
+    renderHome, routePage, showPage, applyFontTheme, _fcImgLoaded,
     workById, imgFor,
     getPath, setPath, clone, toast, $, $$,
     openDetail, renderDetail, openPurchaseModal,
@@ -1927,6 +2062,12 @@
       const home = document.getElementById("home");
       setHomeMode(home.dataset.gmode === "full" ? "cards" : "full");
     });
+    /* works free-layout controls (admin) */
+    const wft = document.getElementById("worksFreeToggle");
+    if (wft) wft.addEventListener("click", toggleWorksFree);
+    const act = document.getElementById("addCanvasText");
+    if (act) act.addEventListener("click", addCanvasText);
+    _updateFreeToggleLabel();
 
     window.addEventListener("hashchange", routePage);
     document.addEventListener("keydown", (e) => {
