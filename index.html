@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=Inter:wght@400;500;600;700&family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&family=Hanken+Grotesk:wght@400;500;600;700&family=Shantell+Sans:wght@400;600&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/css/style.css?v=23">
+<link rel="stylesheet" href="assets/css/style.css?v=24">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%23111'/%3E%3Cg stroke='%23F4C430' stroke-width='9' stroke-linecap='round'%3E%3Cpath d='M50 20 V80'/%3E%3Cpath d='M26 34 L74 66'/%3E%3Cpath d='M74 34 L26 66'/%3E%3C/g%3E%3C/svg%3E">
 </head>
 <body>
@@ -50,14 +50,30 @@
 <main id="top">
 
   <!-- ===== HOME / LANDING (page) ===== -->
-  <section class="page home-page" id="home" data-page="home">
+  <section class="page home-page" id="home" data-page="home" data-gmode="full">
     <header class="home-head">
       <div class="home-intro">
         <h2 class="home-intro-title" data-edit="home.title">—</h2>
         <p class="home-intro-text" data-edit="home.col1">—</p>
       </div>
-      <span class="home-eyebrow" data-edit="home.eyebrow">—</span>
+      <div class="home-head-right">
+        <span class="home-eyebrow" data-edit="home.eyebrow">—</span>
+        <button class="home-gtoggle" id="homeGToggle" aria-label="გალერეის ხედის შეცვლა" title="ხედის შეცვლა">
+          <svg class="gt-cards" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="2.5" y="3" width="5.5" height="14"/><rect x="11.5" y="3" width="5.5" height="14"/></svg>
+          <svg class="gt-full"  viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="2.5" y="4.5" width="15" height="11"/></svg>
+        </button>
+      </div>
     </header>
+
+    <!-- FULL-WIDE slideshow (default) -->
+    <div class="home-full" id="homeFull">
+      <div class="hf-slides" id="hfSlides"></div>
+      <button class="hf-arrow hf-prev" id="hfPrev" aria-label="წინა">&#8249;</button>
+      <button class="hf-arrow hf-next" id="hfNext" aria-label="შემდეგი">&#8250;</button>
+      <div class="hf-meta"><span class="hf-cap" id="hfCap"></span><span class="hf-counter" id="hfCounter"></span></div>
+    </div>
+
+    <!-- CARD carousel -->
     <div class="home-carousel-wrap">
       <button class="hc-arrow hc-prev" id="hcPrev" aria-label="წინა">&#8249;</button>
       <div class="home-carousel" id="homeCarousel"></div>
@@ -244,8 +260,8 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="assets/js/data.js?v=23"></script>
-<script src="assets/js/app.js?v=23"></script>
-<script src="assets/js/admin.js?v=23"></script>
+<script src="assets/js/data.js?v=24"></script>
+<script src="assets/js/app.js?v=24"></script>
+<script src="assets/js/admin.js?v=24"></script>
 </body>
 </html>

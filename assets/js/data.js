@@ -101,7 +101,10 @@ const DEFAULT_DATA = {
     col3: "Step inside the work. Explore the portfolio, the photography and the process behind each piece.",
     cta: "Enter portfolio →",
     /* slide source: 'all' = works + photos · 'works' · 'photos' */
-    slideSource: "all"
+    slideSource: "all",
+    /* default home gallery layout: 'full' (full-wide slideshow) or 'cards' (carousel).
+       visitor can flip it with the on-page toggle icon (remembered per browser). */
+    galleryDefault: "full"
   },
 
   worksSection: {
